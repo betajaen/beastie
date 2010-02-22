@@ -1,0 +1,3 @@
+Beastie
+
+Beastie is a Collision Detection Library For Ogre3D
