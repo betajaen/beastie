@@ -30,6 +30,7 @@
 #define RETURN_IF(COND) if (COND) return;
 #define SQUARED(X) X*X
 
+// Point vs Point
 void beastie::Tests::intersection(class beastie::Point* pointA,class beastie::Point* pointB, struct beastie::Intersection& intersection)
 {
  if (pointA->mPosition.squaredDistance(pointB->mPosition) <= beastie::epsSquared)
