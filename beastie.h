@@ -30,20 +30,27 @@
 #include "OGRE/OgreVector3.h"
 #include "OGRE/OgreManualObject.h"
 
-// Max. Number of Triangles per DynamicTriangleMesh.
-#define BEASTIE_DYNAMICTRIANGLEMESH_MAX_TRI_COUNT 32
-
 namespace beastie
 {
  
- static const Ogre::Real eps        =  std::numeric_limits<Ogre::Real>::epsilon();
- static const Ogre::Real epsSquared =  eps * eps;
+ enum ShapeType
+ {
+  ShapeType_Point,
+  ShapeType_Line,
+  ShapeType_Triangle,
+  ShapeType_Plane
+ };
+ 
+ static const Ogre::Real            eps                                 = std::numeric_limits<Ogre::Real>::epsilon();
+ static const Ogre::Real            epsSquared                          = eps * eps;
  
  static const Ogre::ColourValue     VisualDebuggerPointColour           = Ogre::ColourValue(0,0,1,1);
  static const Ogre::ColourValue     VisualDebuggerLineColour            = Ogre::ColourValue(0,1,0,1);
  static const Ogre::ColourValue     VisualDebuggerPlaneColour           = Ogre::ColourValue(1,0,1,1);
  static const Ogre::ColourValue     VisualDebuggerTriangleColour        = Ogre::ColourValue(1,1,1,1);
  static const Ogre::ColourValue     VisualDebuggerDynamicTriangleColour = Ogre::ColourValue(0,1,1,1);
+ 
+ static const Ogre::uint            DynamicTriangleMeshMaxTriangles     = 32;
  
  // Abstract Shape
  class Shape;
@@ -76,6 +83,20 @@ namespace beastie
   Ogre::Vector3  position;
  };
  
+ // Utils tests
+ class Utils
+ {
+   
+  public:
+   
+  static Line  getPickLine(Ogre::Camera*, float x, float y);
+  
+  static Line  rayToLine(const Ogre::Ray& ray, Ogre::Real lineLength = 100);
+  
+  static std::string toString(ShapeType);
+  
+ };
+
  // Collision tests
  class Tests
  {
@@ -109,14 +130,6 @@ namespace beastie
    
   public:
    
-   enum ShapeType
-   {
-    ShapeType_Point,
-    ShapeType_Line,
-    ShapeType_Triangle,
-    ShapeType_Plane
-   };
-   
    inline virtual ShapeType     getShapeType() const = 0;
    
    inline virtual Ogre::Vector3 getPosition() const = 0;
@@ -147,6 +160,7 @@ namespace beastie
  class Point : public Shape
  {
    
+   friend class Utils;
    friend class Tests;
    friend class VisualRenderer;
    
@@ -158,7 +172,7 @@ namespace beastie
     inline Point(const Ogre::Vector3& position)
      : mPosition(position)                                          {   }
     
-    inline ShapeType     getShapeType() const                       {   return Shape::ShapeType_Point;}
+    inline ShapeType     getShapeType() const                       {   return ShapeType_Point;}
     
     inline Ogre::Vector3 getPosition() const                        {   return mPosition;}
     
@@ -188,6 +202,7 @@ namespace beastie
  class Line : public Shape
  {
    
+   friend class Utils;
    friend class Tests;
    friend class VisualRenderer;
    
@@ -202,7 +217,7 @@ namespace beastie
                 Ogre::Real length)
       : mPosition(position), mDirection(direction), mLength(length)             {   }
     
-    inline ShapeType     getShapeType() const                                   {   return Shape::ShapeType_Line;}
+    inline ShapeType     getShapeType() const                                   {   return ShapeType_Line;}
     
     inline Ogre::Vector3 getPosition() const                                    {   return mPosition;}
     
@@ -247,6 +262,7 @@ namespace beastie
  class Triangle : public Shape
  {
    
+   friend class Utils;
    friend class Tests;
    friend class VisualRenderer;
    
@@ -264,7 +280,7 @@ namespace beastie
              Ogre::Real cX, Ogre::Real cY, Ogre::Real cZ)
             : mA(aX, aY, aZ), mB(bX, bY, bZ), mC(cX, cY, cZ)    {   }
     
-    inline ShapeType     getShapeType() const                   {  return Shape::ShapeType_Triangle;}
+    inline ShapeType     getShapeType() const                   {  return ShapeType_Triangle;}
     
     inline Ogre::Vector3 getPosition() const                    {  return Ogre::Vector3::ZERO; /* TODO */ }
     
@@ -307,6 +323,7 @@ namespace beastie
  class Plane : public Shape
  {
    
+   friend class Utils;
    friend class Tests;
    friend class VisualRenderer;
    
@@ -318,7 +335,7 @@ namespace beastie
     Plane(const Ogre::Vector3& normal, Ogre::Real distance)
      : mNormal(normal), mDistance(distance)                     {   }
     
-    inline ShapeType     getShapeType() const                   {   return Shape::ShapeType_Plane;}
+    inline ShapeType     getShapeType() const                   {   return ShapeType_Plane;}
     
     inline Ogre::Vector3 getPosition() const                    {   return mNormal * mDistance;}
     
@@ -366,7 +383,10 @@ namespace beastie
    void beginRender()
    {
     if (mManualObject->getNumSections() == 0)
+    {
      mManualObject->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_LIST);
+     mManualObject->setDynamic(true);
+    }
     else
      mManualObject->beginUpdate(0);
    }
@@ -379,56 +399,38 @@ namespace beastie
     {
      Point* point = shape->asPoint();
 #ifndef BEASTIE_VISUALDEBUGGER_SIMPLE
-     mManualObject->position(point->mPosition.x-0.1f, point->mPosition.y, point->mPosition.z);
-     mManualObject->colour(VisualDebuggerPointColour);
-     mManualObject->position(point->mPosition.x+0.1f, point->mPosition.y, point->mPosition.z);
-     mManualObject->colour(VisualDebuggerPointColour);
-     mManualObject->position(point->mPosition.x, point->mPosition.y, point->mPosition.z-0.1f);
-     mManualObject->colour(VisualDebuggerPointColour);
-     mManualObject->position(point->mPosition.x, point->mPosition.y, point->mPosition.z+0.1f);
-     mManualObject->colour(VisualDebuggerPointColour);
-     mManualObject->position(point->mPosition.x, point->mPosition.y-0.1f, point->mPosition.z);
-     mManualObject->colour(VisualDebuggerPointColour);
-     mManualObject->position(point->mPosition.x, point->mPosition.y+0.1f, point->mPosition.z);
-     mManualObject->colour(VisualDebuggerPointColour);
+     pos_col(point->mPosition.x-0.1f, point->mPosition.y, point->mPosition.z,   VisualDebuggerPointColour);
+     pos_col(point->mPosition.x+0.1f, point->mPosition.y, point->mPosition.z,   VisualDebuggerPointColour);
+     pos_col(point->mPosition.x, point->mPosition.y, point->mPosition.z-0.1f,   VisualDebuggerPointColour);
+     pos_col(point->mPosition.x, point->mPosition.y, point->mPosition.z+0.1f,   VisualDebuggerPointColour);
+     pos_col(point->mPosition.x, point->mPosition.y-0.1f, point->mPosition.z,   VisualDebuggerPointColour);
+     pos_col(point->mPosition.x, point->mPosition.y+0.1f, point->mPosition.z,   VisualDebuggerPointColour);
 #else
-     mManualObject->position(point->mPosition.x, point->mPosition.y, point->mPosition.z);
-     mManualObject->colour(VisualDebuggerPointColour);
-     mManualObject->position(point->mPosition.x, point->mPosition.y+Ogre::Real(0.001), point->mPosition.z);
-     mManualObject->colour(VisualDebuggerPointColour);
+     pos_col(point->mPosition, VisualDebuggerPointColour);
+     pos_col(point->mPosition.x, point->mPosition.y+Ogre::Real(0.001), point->mPosition.z, VisualDebuggerPointColour);
 #endif
     }
     else if (shape->isLine())
     {
      Line* line = shape->asLine();
-     mManualObject->position(line->mPosition);
-     mManualObject->colour(VisualDebuggerLineColour);
-     mManualObject->position(line->mPosition + (line->mDirection * line->mLength));
-     mManualObject->colour(VisualDebuggerLineColour);
+     pos_col(line->mPosition, VisualDebuggerLineColour);
+     pos_col(line->mPosition + (line->mDirection * line->mLength), VisualDebuggerLineColour);
     }
     else if (shape->isPlane())
     {
      Plane* plane = shape->asPlane();
-     mManualObject->position(plane->mNormal * plane->mDistance );
-     mManualObject->colour(VisualDebuggerPlaneColour);
-     mManualObject->position(plane->mNormal * (plane->mDistance + 1) );
-     mManualObject->colour(VisualDebuggerPlaneColour);
+     pos_col(plane->mNormal * plane->mDistance, VisualDebuggerPlaneColour);
+     pos_col(plane->mNormal * (plane->mDistance + 1), VisualDebuggerPlaneColour);
     }
     else if (shape->isTriangle())
     {
      Triangle* triangle = shape->asTriangle();
-     mManualObject->position(triangle->mA);
-     mManualObject->colour(VisualDebuggerTriangleColour);
-     mManualObject->position(triangle->mB);
-     mManualObject->colour(VisualDebuggerTriangleColour);
-     mManualObject->position(triangle->mB);
-     mManualObject->colour(VisualDebuggerTriangleColour);
-     mManualObject->position(triangle->mC);
-     mManualObject->colour(VisualDebuggerTriangleColour);
-     mManualObject->position(triangle->mC);
-     mManualObject->colour(VisualDebuggerTriangleColour);
-     mManualObject->position(triangle->mA);
-     mManualObject->colour(VisualDebuggerTriangleColour);
+     pos_col(triangle->mA, VisualDebuggerTriangleColour);
+     pos_col(triangle->mB, VisualDebuggerTriangleColour);
+     pos_col(triangle->mB, VisualDebuggerTriangleColour);
+     pos_col(triangle->mC, VisualDebuggerTriangleColour);
+     pos_col(triangle->mC, VisualDebuggerTriangleColour);
+     pos_col(triangle->mA, VisualDebuggerTriangleColour);
     }
    }
    
@@ -439,6 +441,18 @@ namespace beastie
    
   protected:
    
+   inline void pos_col(const Ogre::Vector3& vec, const Ogre::ColourValue& col)
+   {
+    mManualObject->position(vec);
+    mManualObject->colour(col);
+   }
+   
+   inline void pos_col(float x, float y, float z, const Ogre::ColourValue& col)
+   {
+    mManualObject->position(x,y,z);
+    mManualObject->colour(col);
+   }
+
    Ogre::ManualObject*  mManualObject;
    
  };

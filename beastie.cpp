@@ -24,11 +24,54 @@
 */
 
 #include "beastie.h"
+#include "OGRE/OgreRay.h"
+#include "OGRE/OgreCamera.h"
 
 #include <iostream>
 
 #define RETURN_IF(COND) if (COND) return;
 #define SQUARED(X) X*X
+
+std::string beastie::Utils::toString(ShapeType type)
+{
+ if (type == beastie::ShapeType_Point)
+  return std::string("Point");
+ else if (type == beastie::ShapeType_Line)
+  return std::string("Line");
+ else if (type == beastie::ShapeType_Triangle)
+  return std::string("Triangle");
+ else if (type == beastie::ShapeType_Plane)
+  return std::string("Plane");
+ return std::string("Unknown");
+}
+
+beastie::Line  beastie::Utils::rayToLine(const Ogre::Ray& in, Ogre::Real lineLength)
+{
+ beastie::Line out;
+ out.setDirection(in.getDirection());
+ out.setPosition(in.getOrigin());
+ out.setLength(lineLength);
+ return out;
+}
+
+beastie::Line  beastie::Utils::getPickLine(Ogre::Camera* cam, float x, float y)
+{
+ // Stolen from OgreCamera.cpp
+ Ogre::Matrix4 inverseVP = (cam->getProjectionMatrix() * cam->getViewMatrix(true)).inverse();
+ 
+ Ogre::Real nx = (2.0f * x) - 1.0f;
+ Ogre::Real ny = 1.0f - (2.0f * y);
+ 
+ Ogre::Vector3 nearPoint(nx,ny,-1.0f);
+ Ogre::Vector3 midPoint(nx,ny,0.0f);
+ 
+ Line line;
+ line.mPosition  = inverseVP * nearPoint;
+ line.mDirection = Ogre::Vector3(inverseVP * midPoint) - line.mPosition;
+ line.mDirection.normalise();
+ 
+ return line;
+}
 
 // Point vs Point
 void beastie::Tests::intersection(class beastie::Point* pointA,class beastie::Point* pointB, struct beastie::Intersection& intersection)
@@ -134,7 +177,7 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Plane* plane, be
  
  Ogre::Real nom = plane->mNormal.dotProduct(line->mPosition) + plane->mDistance;
  Ogre::Real t   = -(nom/denom);
- if (t <= line->mLength)
+ if (t >= 0 && t <= line->mLength)
  {
   intersection.hit = true;
   intersection.position = line->mPosition + (line->mDirection * t);

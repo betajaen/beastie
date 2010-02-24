@@ -21,10 +21,10 @@ struct SoyCase
 };
 
 #define CASES_BEGIN     void Soy() {
-#define CASE(TEST_NAME) {SoyResult r = TEST_NAME::Perform();if (r.fail){std::cout << r.case_description << "\n---\n#" << r.test_nb << " (" << r.test_description << ")\n>>> " << r.fail_message <<"\n";return;}}
+#define CASE(TEST_NAME) {SoyResult r = TEST_NAME::Perform();if (r.fail){std::cout << " -- FAILED\n\nCase: #" << r.test_nb << " (" << r.test_description << ")\nReason: " << r.fail_message <<"\n";return;}else{std::cout<<" -- OK\n";}}
 #define CASES_END        std::cout << "** OK\n";}
 
-#define CASE_BEGIN(CASE_NAME) struct CASE_NAME : public SoyCase { static SoyResult Perform() { CASE_NAME c; return c.R; }
+#define CASE_BEGIN(CASE_NAME) struct CASE_NAME : public SoyCase { static SoyResult Perform() { std::cout<<std::string(typeid(CASE_NAME).name()).substr(7);CASE_NAME c; return c.R; }
 #define CASE_END };
 
 #define CASE_DESCRIPTION(CASE_DESCRIPTION) R.test_nb = 0; R.case_description = CASE_DESCRIPTION; R.fail = false;

@@ -1,0 +1,34 @@
+h1. Beastie
+
+p. Beastie is a Collision Detection Library For Ogre3D
+
+h2. Licence
+
+p. Beastie is released under the MIT Licence.
+
+h2. Install/Use
+
+p. Copy the beastie.h/beastie.cpp files into your project directory and @#include "beastie.h"@. 
+
+h2. Working Collisions
+
+h3. Point
+
+* Point
+* Line
+* Triangle
+* Plane
+
+h3. Line
+
+* Point
+* Plane (See LineVsPlane.h)
+
+h3. Triangle
+
+* Point
+
+h3. Plane
+    
+* Line  (See LineVsPlane.h)
+* Point
