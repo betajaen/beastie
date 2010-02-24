@@ -41,8 +41,10 @@ namespace beastie
   ShapeType_Plane
  };
  
- static const Ogre::Real            eps                                 = std::numeric_limits<Ogre::Real>::epsilon();
- static const Ogre::Real            epsSquared                          = eps * eps;
+ static const Ogre::Real            eps                                 =  std::numeric_limits<Ogre::Real>::epsilon();
+ static const Ogre::Real            epsSquared                          =  eps * eps;
+ static const Ogre::Real            negativeEps                         = -eps;
+ static const Ogre::Real            negativeEpsSquared                  = -epsSquared;
  
  static const Ogre::ColourValue     VisualDebuggerPointColour           = Ogre::ColourValue(0,0,1,1);
  static const Ogre::ColourValue     VisualDebuggerLineColour            = Ogre::ColourValue(0,1,0,1);
@@ -131,10 +133,6 @@ namespace beastie
   public:
    
    inline virtual ShapeType     getShapeType() const = 0;
-   
-   inline virtual Ogre::Vector3 getPosition() const = 0;
-   
-   inline virtual void          setPosition(const Ogre::Vector3&) = 0 ;
    
    virtual Intersection         intersection(Shape*) = 0;
    
@@ -269,34 +267,47 @@ namespace beastie
    public:
     
     inline Triangle()
-            : mA(), mB(), mC()                                  {   }
+            : mA(), mB(), mC(), mNormal()                       {   }
     
     inline Triangle(const Ogre::Vector3& a, const Ogre::Vector3& b,
                     const Ogre::Vector3& c)
-            : mA(a), mB(b), mC(c)                               {   }
+            : mA(a), mB(b), mC(c)                               {   calculateNormal();  }
+    
+    inline Triangle(const Ogre::Vector3& a, const Ogre::Vector3& b,
+                    const Ogre::Vector3& c, const Ogre::Vector3& normal)
+            : mA(a), mB(b), mC(c), mNormal(normal)              {   }
     
     inline Triangle(Ogre::Real aX, Ogre::Real aY, Ogre::Real aZ,
              Ogre::Real bX, Ogre::Real bY, Ogre::Real bZ,
              Ogre::Real cX, Ogre::Real cY, Ogre::Real cZ)
-            : mA(aX, aY, aZ), mB(bX, bY, bZ), mC(cX, cY, cZ)    {   }
+            : mA(aX, aY, aZ), mB(bX, bY, bZ), mC(cX, cY, cZ)    {   calculateNormal();  }
     
-    inline ShapeType     getShapeType() const                   {  return ShapeType_Triangle;}
+    inline Triangle(Ogre::Real aX, Ogre::Real aY, Ogre::Real aZ,
+             Ogre::Real bX, Ogre::Real bY, Ogre::Real bZ,
+             Ogre::Real cX, Ogre::Real cY, Ogre::Real cZ,
+             Ogre::Real nX, Ogre::Real nY, Ogre::Real nZ)
+            : mA(aX, aY, aZ), mB(bX, bY, bZ), mC(cX, cY, cZ),
+              mNormal(nX, nY, nZ)                               {   }
     
-    inline Ogre::Vector3 getPosition() const                    {  return Ogre::Vector3::ZERO; /* TODO */ }
+    inline ShapeType     getShapeType() const                   {   return ShapeType_Triangle;}
     
-    inline void          setPosition(const Ogre::Vector3&)      {   }
+    inline void          setVertexA(const Ogre::Vector3& a)     {   mA = a;}
     
-    inline void          setPositionA(const Ogre::Vector3&)     {   }
+    inline void          setVertexB(const Ogre::Vector3& b)     {   mB = b;}
     
-    inline void          setPositionB(const Ogre::Vector3&)     {   }
+    inline void          setVertexC(const Ogre::Vector3& c)     {   mC = c;}
     
-    inline void          setPositionC(const Ogre::Vector3&)     {   }
+    inline void          setNormal(const Ogre::Vector3& normal) {   mNormal = normal;  }
     
-    inline Ogre::Vector3 getPositionA() const                   {   return mA;  }
+    inline Ogre::Vector3 getVertexA() const                     {   return mA;  }
     
-    inline Ogre::Vector3 getPositionB() const                   {   return mB;  }
+    inline Ogre::Vector3 getVertexB() const                     {   return mB;  }
     
-    inline Ogre::Vector3 getPositionC() const                   {   return mC;  }
+    inline Ogre::Vector3 getVertexC() const                     {   return mC;  }
+    
+    inline Ogre::Vector3 getNormal() const                      {   return mNormal;  }
+    
+    inline void          calculateNormal()                      {   mNormal = Ogre::Math::calculateBasicFaceNormal(mA,mB,mC);  }
     
     inline Triangle*     asTriangle()                           {   return static_cast<Triangle*>(this); }
     
@@ -305,7 +316,7 @@ namespace beastie
     inline Intersection  intersection(Shape* shape)
     {
       Intersection hit;
-            if (this == shape)       {hit.hit=true;hit.position=getPosition();}
+            if (this == shape)       {hit.hit=true;}
        else if (shape->isPoint())    Tests::intersection(shape->asPoint(), this, hit);
        else if (shape->isLine())     Tests::intersection(shape->asLine(), this, hit);
        else if (shape->isTriangle()) Tests::intersection(shape->asTriangle(), this, hit);
@@ -315,7 +326,7 @@ namespace beastie
     
    protected:
     
-    Ogre::Vector3 mA, mB, mC;
+    Ogre::Vector3 mA, mB, mC, mNormal;
     
  };
  

@@ -16,9 +16,6 @@
 typedef Ogre::StringConverter StrConv;
 
 class App* app;
-
-inline Ogre::ColourValue getRGB(float, float, float);
-
 static const unsigned int      WindowResWidth        = 1280;
 static const unsigned int      WindowResHeight       = 720;
 static const bool              WindowAA              = true;
@@ -35,6 +32,10 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
  void  makeBeastieScene()
  {
   mGroundPlane = beastie::Plane(Ogre::Vector3::UNIT_Y,  0);
+  mTestTriangle = beastie::Triangle(-1,1,-1,   1,1,1,   1,0,-1);
+  
+  mStatics.push_back(&mTestTriangle);
+  mStatics.push_back(&mGroundPlane);
  }
  
  // Point based "particle"
@@ -74,10 +75,11 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    beastie::Point point;
  };
 
- beastie::Line                mCameraLine;  // Raycasting line
- beastie::Plane               mGroundPlane; // Ground Plane
- std::vector<beastie::Shape*> mStatics;     // Copy of all "statics"
- std::vector<Particle*>       mParticles;   // Master Copy of all Particles
+ beastie::Line                mCameraLine;   // Raycasting line
+ beastie::Plane               mGroundPlane;  // Ground Plane
+ beastie::Triangle            mTestTriangle; //
+ std::vector<beastie::Shape*> mStatics;      // Copy of all "statics"
+ std::vector<Particle*>       mParticles;    // Master Copy of all Particles
 
  ///////////////////////////////////////////////////////////////////////////////////////////
  //
@@ -225,6 +227,17 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
   mReferenceObject->position(-1000, -1.f, 1000); mReferenceObject->colour(GroundColour);
   mReferenceObject->end();
   
+  mReferenceObject->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+    mReferenceObject->position(mTestTriangle.getVertexA());
+    mReferenceObject->colour(Ogre::ColourValue::Green);
+    mReferenceObject->normal(mTestTriangle.getNormal());
+    mReferenceObject->position(mTestTriangle.getVertexB());
+    mReferenceObject->colour(Ogre::ColourValue::Green);
+    mReferenceObject->normal(mTestTriangle.getNormal());
+    mReferenceObject->position(mTestTriangle.getVertexC());
+    mReferenceObject->colour(Ogre::ColourValue::Green);
+    mReferenceObject->normal(mTestTriangle.getNormal());
+  mReferenceObject->end();
   
   mSceneManager->getRootSceneNode()->attachObject(mReferenceObject);
   
@@ -232,7 +245,6 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
   createText("FPS", 30, 5, true);
   
   mRayOverlay = createText("", 5, mWindow->getHeight() - 25.f);
-  mStatics.push_back(&mGroundPlane);
   
  }
  
@@ -454,18 +466,10 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
  
 };
 
-inline Ogre::ColourValue getRGB(float r, float g, float b)
-   {  return Ogre::ColourValue(r*0.0039f,g*0.0039f,b*0.0039f,1.0f);  }
-
-void Soy();
-
 int main(int argc, char **argv)
 {
-#ifndef BEASTIE_DOES_TESTING
- Soy();
-#else
  app = new App();
  app->go();
  delete app;
-#endif
+ return 0;
 }
