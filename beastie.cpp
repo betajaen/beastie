@@ -26,7 +26,10 @@
 #include "beastie.h"
 #include "OGRE/OgreRay.h"
 #include "OGRE/OgreCamera.h"
+#include "OGRE/OgreMesh.h"
+#include "OGRE/OgreSubMesh.h"
 
+#include <vector>
 #include <iostream>
 
 #ifdef _DEBUG
@@ -35,20 +38,124 @@
 #  define RETURN_IF(COND, REASON) if (COND) {return;}
 #endif
 
-#define SQUARED(X) X*X
+#define CONTINUE_IF(COND) if (COND) continue;
 
-std::string beastie::Utils::toString(ShapeType type)
+#define SQUARED(X) X*X
+#define ABS(X) Ogre::Math::Abs(X)
+
+namespace beastie
 {
- if (type == beastie::ShapeType_Point)
-  return std::string("Point");
- else if (type == beastie::ShapeType_Line)
-  return std::string("Line");
- else if (type == beastie::ShapeType_Triangle)
-  return std::string("Triangle");
- else if (type == beastie::ShapeType_Plane)
-  return std::string("Plane");
- return std::string("Unknown");
+ static unsigned int nextShapeID = 0;
 }
+
+unsigned int beastie::Utils::uniqueID()
+{
+ return beastie::nextShapeID++;
+}
+
+void beastie::Utils::meshToVector(const Ogre::MeshPtr& mesh, std::vector<NormalisedTriangle>& vec)
+{
+ vec.clear();
+ 
+ Ogre::Vector3* verts = 0;
+ unsigned long* indices = 0;
+ size_t nbVerts = 0, nbIndices = 0, nbSubMeshIndices = 0;
+ bool addedShared = false;
+ for (Ogre::ushort i=0;i < mesh->getNumSubMeshes(); ++i)
+ {
+  Ogre::SubMesh* submesh = mesh->getSubMesh(i);
+  if (submesh->useSharedVertices)
+  {
+   if (!addedShared)
+   {
+    nbVerts += mesh->sharedVertexData->vertexCount;
+    addedShared = true;
+   }
+  }
+  else
+  {
+   nbVerts += submesh->vertexData->vertexCount;
+  }
+  nbIndices += submesh->indexData->indexCount;
+ }
+ 
+ verts = new Ogre::Vector3[nbVerts];
+ indices = new unsigned long[nbIndices];
+ 
+ addedShared = false;
+ Ogre::VertexData* vData = 0;
+ Ogre::IndexData*  iData = 0;
+ size_t currentOffset = 0, sharedOffset = 0, nextOffset = 0, indexOffset = 0, offset = 0;
+
+ for (Ogre::ushort i = 0; i < mesh->getNumSubMeshes();++i)
+ {
+   Ogre::SubMesh* submesh = mesh->getSubMesh(i);
+   vData = submesh->useSharedVertices ? mesh->sharedVertexData : submesh->vertexData;
+   
+   if ((!submesh->useSharedVertices) || (submesh->useSharedVertices && !addedShared))
+   {
+    if (submesh->useSharedVertices)
+    {
+     addedShared = true;
+     sharedOffset = currentOffset;
+    }
+    
+    const Ogre::VertexElement* posElem = vData->vertexDeclaration->findElementBySemantic(Ogre::VES_POSITION);
+    Ogre::HardwareVertexBufferSharedPtr vBuf = vData->vertexBufferBinding->getBuffer(posElem->getSource());
+    
+    Ogre::uchar* vertex = static_cast<Ogre::uchar*>(vBuf->lock(Ogre::HardwareBuffer::HBL_READ_ONLY));
+    float* pos;
+    
+    for (size_t j=0;j < vData->vertexCount; ++j, vertex += vBuf->getVertexSize())
+    {
+     posElem->baseVertexPointerToElement(vertex, &pos);
+     verts[currentOffset + j].x = pos[0];
+     verts[currentOffset + j].y = pos[1];
+     verts[currentOffset + j].z = pos[2];
+    }
+    vBuf->unlock();
+    nextOffset += vData->vertexCount;
+   }
+   
+   iData = submesh->indexData;
+   nbSubMeshIndices = iData->indexCount;
+   
+   Ogre::HardwareIndexBufferSharedPtr iBuf = iData->indexBuffer;
+   
+   unsigned long* indexL = static_cast<unsigned long*>(iBuf->lock(Ogre::HardwareBuffer::HBL_READ_ONLY));
+   unsigned short* indexS = reinterpret_cast<unsigned short*>(indexL);
+   
+   if (iBuf->getType() == Ogre::HardwareIndexBuffer::IT_32BIT)
+   {
+    for (size_t k = 0; k < nbSubMeshIndices;++k)
+     indices[indexOffset++] = indexL[k] + static_cast<unsigned long>(offset);
+   }
+   else
+   {
+    for (size_t k = 0; k < nbSubMeshIndices;++k)
+     indices[indexOffset++] = static_cast<unsigned long>(indexS[k]) + static_cast<unsigned long>(offset);
+   }
+
+  iBuf->unlock();
+  currentOffset = nextOffset;
+ } // for
+ 
+ vec.clear();
+ vec.reserve(nbIndices / 3);
+ for (size_t i=0;i < nbIndices;i+=3)
+ {
+  NormalisedTriangle tri;
+  tri.a = verts[indices[i]];
+  tri.b = verts[indices[i+1]];
+  tri.c = verts[indices[i+2]];
+  tri.normalise();
+  vec.push_back(tri);
+ }
+ 
+ delete indices;
+ delete verts;
+}
+
 
 beastie::Line  beastie::Utils::rayToLine(const Ogre::Ray& in, Ogre::Real lineLength)
 {
@@ -59,16 +166,14 @@ beastie::Line  beastie::Utils::rayToLine(const Ogre::Ray& in, Ogre::Real lineLen
  return out;
 }
 
-beastie::Line  beastie::Utils::getPickLine(Ogre::Camera* cam, float x, float y)
+beastie::Line  beastie::Utils::getCameraToViewportRay(Ogre::Camera* cam, float x, float y)
 {
  // Stolen from OgreCamera.cpp
  Ogre::Matrix4 inverseVP = (cam->getProjectionMatrix() * cam->getViewMatrix(true)).inverse();
  
- Ogre::Real nx = (2.0f * x) - 1.0f;
- Ogre::Real ny = 1.0f - (2.0f * y);
+ Ogre::Real nx = (2.0f * x) - 1.0f,  ny = 1.0f - (2.0f * y);
  
- Ogre::Vector3 nearPoint(nx,ny,-1.0f);
- Ogre::Vector3 midPoint(nx,ny,0.0f);
+ Ogre::Vector3 nearPoint(nx,ny,-1.0f), midPoint(nx,ny,0.0f);
  
  Line line;
  line.mPosition  = inverseVP * nearPoint;
@@ -253,6 +358,120 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Plane* plane, be
 void beastie::Tests::intersection(beastie::Plane* plane1, beastie::Plane* plane2, beastie::Intersection& intersection)
 {
 }
+
+// DynamicMesh vs DynamicMesh
+void beastie::Tests::intersection(beastie::DynamicMesh *,beastie::DynamicMesh *, beastie::Intersection &)
+{
+}
+
+// Plane vs DynamicMesh
+void beastie::Tests::intersection(beastie::Plane *,beastie::DynamicMesh *, beastie::Intersection &)
+{
+}
+
+// Triangle vs DynamicMesh
+void beastie::Tests::intersection(beastie::Triangle *,beastie::DynamicMesh *, beastie::Intersection &)
+{
+}
+
+// Line vs DynamicMesh
+void beastie::Tests::intersection(beastie::Line* line,beastie::DynamicMesh* dynMesh, beastie::Intersection& intersection)
+{
+ 
+ // TODO: AABox Intersection here.
+ 
+ if (dynMesh->mNeedsUpdate)
+ {
+  dynMesh->mMesh->transformTriangles(dynMesh->mTriangles, dynMesh->mPosition, dynMesh->mOrientation, dynMesh->mScale);
+  dynMesh->mNeedsUpdate = false;
+ }
+ 
+  // Stolen (and slightly re-written) from OgreMath.cpp
+  
+ size_t i0, i1; Ogre::Real t, u0, u1, v0, v1, u2, v2, alpha, beta, area; NormalisedTriangle triangle;
+ 
+ for (unsigned int i=0;i < dynMesh->mTriangles.mSize;i++)
+ {
+  
+  triangle = dynMesh->mTriangles.mTriangles[i];
+  
+  u1 = triangle.n.dotProduct(line->getDirection());
+  CONTINUE_IF(u1 > beastie::eps); // Intersection on otherside of triangle face.
+  
+  t = triangle.n.dotProduct(triangle.a - line->getPosition()) / u1;
+  CONTINUE_IF(t < 0);
+  
+  u1 = ABS(triangle.n[0]); // n0
+  v1 = ABS(triangle.n[1]); // n1
+  u2 = ABS(triangle.n[2]); // n2
+  
+  i0 = 1; i1 = 2;
+  if (u1 > u2)
+     {
+      if (u1 > u1)
+       i0 = 0;
+     }
+  else
+     {
+      if (u2 > u1)
+       i1 = 0;
+     }
+  
+  
+  u1 = triangle.b[i0] - triangle.a[i0];
+  v1 = triangle.b[i1] - triangle.a[i1];
+  u2 = triangle.c[i0] - triangle.a[i0];
+  v2 = triangle.c[i1] - triangle.a[i1];
+  
+  u0 = t * line->mDirection[i0] + line->mPosition[i0] -  triangle.a[i0];
+  v0 = t * line->mDirection[i1] + line->mPosition[i1] -  triangle.a[i1];
+  
+  alpha = u0 * v2 - u2 * v0;
+  beta  = u1 * v0 - u0 * v1;
+  area  = u1 * v2 - u2 * v1;
+  
+  u1 = beastie::negativeEps * area;
+  
+  if (area > 0)
+  {
+   CONTINUE_IF(alpha < u1 || beta < u1 || alpha+beta > area-u1)
+  }
+  else
+  {
+   CONTINUE_IF(alpha > u1 || beta > u1 || alpha+beta < area-u1)
+  }
+ 
+  intersection.hit = true;
+  intersection.position = line->mPosition + (line->mDirection * t);
+ 
+  return;
+ } // for
+ 
+}
+
+// Point vs DynamicMesh
+void beastie::Tests::intersection(beastie::Point *, beastie::DynamicMesh *, beastie::Intersection &)
+{
+}
+
+void beastie::Tests::intersection(beastie::DynamicMesh *, beastie::Point*, beastie::Intersection &)
+{
+}
+
+void beastie::Tests::intersection(beastie::DynamicMesh* dynMesh, beastie::Line* line, beastie::Intersection& intersection)
+{
+ beastie::Tests::intersection(line, dynMesh, intersection);
+}
+
+void beastie::Tests::intersection(beastie::DynamicMesh *, beastie::Plane*, beastie::Intersection &)
+{
+}
+
+void beastie::Tests::intersection(beastie::DynamicMesh *, beastie::Triangle*, beastie::Intersection &)
+{
+}
+
+
 
 #undef RETURN_IF
 #undef SQUARED
