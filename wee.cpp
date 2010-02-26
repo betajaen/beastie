@@ -413,7 +413,7 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
     std::stringstream s;
     s << "Hit a " << beastie::Utils::toString(mShapes[i]->getShapeType()) << " at " << StrConv::toString(in.position);
     mRayOverlay->setCaption(s.str());
-    drawReferenceLineObject(mCameraLine.getPosition(), in.position);
+    drawReferenceLineObject(mCameraLine.getOrigin(), in.position);
     mRayOverlayTimer = 3.0f;
     return;
    }

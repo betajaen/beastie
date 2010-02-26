@@ -43,14 +43,11 @@
 #define SQUARED(X) X*X
 #define ABS(X) Ogre::Math::Abs(X)
 
-namespace beastie
-{
- static unsigned int nextShapeID = 0;
-}
+unsigned int beastie::Utils::sUniqueID = 0;
 
 unsigned int beastie::Utils::uniqueID()
 {
- return beastie::nextShapeID++;
+ return beastie::Utils::sUniqueID++;
 }
 
 void beastie::Utils::meshToVector(const Ogre::MeshPtr& mesh, std::vector<NormalisedTriangle>& vec)
@@ -161,7 +158,7 @@ beastie::Line  beastie::Utils::rayToLine(const Ogre::Ray& in, Ogre::Real lineLen
 {
  beastie::Line out;
  out.setDirection(in.getDirection());
- out.setPosition(in.getOrigin());
+ out.setOrigin(in.getOrigin());
  out.setLength(lineLength);
  return out;
 }
@@ -176,8 +173,8 @@ beastie::Line  beastie::Utils::getCameraToViewportRay(Ogre::Camera* cam, float x
  Ogre::Vector3 nearPoint(nx,ny,-1.0f), midPoint(nx,ny,0.0f);
  
  Line line;
- line.mPosition  = inverseVP * nearPoint;
- line.mDirection = Ogre::Vector3(inverseVP * midPoint) - line.mPosition;
+ line.mOrigin  = inverseVP * nearPoint;
+ line.mDirection = Ogre::Vector3(inverseVP * midPoint) - line.mOrigin;
  line.mDirection . normalise();
  
  return line;
@@ -196,8 +193,8 @@ void beastie::Tests::intersection(class beastie::Point* pointA,class beastie::Po
 // Triangle vs Point
 void beastie::Tests::intersection(beastie::Triangle* triangle, beastie::Point* point, beastie::Intersection& intersection)
 {
- Ogre::Vector3 normal = Ogre::Math::calculateBasicFaceNormal(triangle->mA, triangle->mB, triangle->mC);
- if (Ogre::Math::pointInTri3D(point->mPosition, triangle->mA, triangle->mB, triangle->mC, normal))
+ Ogre::Vector3 normal = Ogre::Math::calculateBasicFaceNormal(triangle->mTriangle.a, triangle->mTriangle.b, triangle->mTriangle.c);
+ if (Ogre::Math::pointInTri3D(point->mPosition, triangle->mTriangle.a, triangle->mTriangle.b, triangle->mTriangle.c, normal))
  {
   intersection.hit = true;
   intersection.position = point->mPosition;
@@ -221,8 +218,8 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Point* point, be
  RETURN_IF(line->mLength == 0, "Length is 0")
  RETURN_IF(line->mDirection == Ogre::Vector3::ZERO, "Direction is 0");
  
- Ogre::Vector3 v = point->mPosition - line->mPosition;
- const Ogre::Vector3 s = line->getOtherPosition() - line->getPosition();
+ Ogre::Vector3 v = point->mPosition - line->mOrigin;
+ const Ogre::Vector3 s = line->getOtherPosition() - line->mOrigin;
  Ogre::Real dot = v.dotProduct(s) / (SQUARED(line->getLength()));
  v = v - (s * dot);
  
@@ -270,16 +267,16 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Triangle* triang
 {
  // Stolen (and slightly re-written) from OgreMath.cpp
  
- Ogre::Real denom = triangle->mNormal.dotProduct(line->getDirection());
+ Ogre::Real denom = triangle->mTriangle.n.dotProduct(line->getDirection());
  RETURN_IF(denom > beastie::eps, "Ray on other side"); // Intersection on otherside of triangle face.
- Ogre::Real t = triangle->mNormal.dotProduct(triangle->mA - line->getPosition()) / denom;
+ Ogre::Real t = triangle->mTriangle.n.dotProduct(triangle->mTriangle.a - line->getOrigin()) / denom;
  RETURN_IF(t < 0, "t<0");
  
  size_t i0, i1;
  {
-  const Ogre::Real n0 = Ogre::Math::Abs(triangle->mNormal[0]);
-  const Ogre::Real n1 = Ogre::Math::Abs(triangle->mNormal[1]);
-  const Ogre::Real n2 = Ogre::Math::Abs(triangle->mNormal[2]);
+  const Ogre::Real n0 = Ogre::Math::Abs(triangle->mTriangle.n[0]);
+  const Ogre::Real n1 = Ogre::Math::Abs(triangle->mTriangle.n[1]);
+  const Ogre::Real n2 = Ogre::Math::Abs(triangle->mTriangle.n[2]);
   
   i0 = 1; i1 = 2;
   if (n1 > n2)
@@ -295,13 +292,13 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Triangle* triang
  }
  
  {
-  Ogre::Real u1 = triangle->mB[i0] - triangle->mA[i0];
-  Ogre::Real v1 = triangle->mB[i1] - triangle->mA[i1];
-  Ogre::Real u2 = triangle->mC[i0] - triangle->mA[i0];
-  Ogre::Real v2 = triangle->mC[i1] - triangle->mA[i1];
+  Ogre::Real u1 = triangle->mTriangle.b[i0] - triangle->mTriangle.a[i0];
+  Ogre::Real v1 = triangle->mTriangle.b[i1] - triangle->mTriangle.a[i1];
+  Ogre::Real u2 = triangle->mTriangle.c[i0] - triangle->mTriangle.a[i0];
+  Ogre::Real v2 = triangle->mTriangle.c[i1] - triangle->mTriangle.a[i1];
   
-  Ogre::Real u0 = t * line->mDirection[i0] + line->mPosition[i0] -  triangle->mA[i0];
-  Ogre::Real v0 = t * line->mDirection[i1] + line->mPosition[i1] -  triangle->mA[i1];
+  Ogre::Real u0 = t * line->mDirection[i0] + line->mOrigin[i0] -  triangle->mTriangle.a[i0];
+  Ogre::Real v0 = t * line->mDirection[i1] + line->mOrigin[i1] -  triangle->mTriangle.a[i1];
   
   Ogre::Real alpha = u0 * v2 - u2 * v0;
   Ogre::Real beta  = u1 * v0 - u0 * v1;
@@ -320,7 +317,7 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Triangle* triang
  }
  
  intersection.hit = true;
- intersection.position = line->mPosition + (line->mDirection * t);
+ intersection.position = line->mOrigin + (line->mDirection * t);
  
 }
 
@@ -345,12 +342,12 @@ void beastie::Tests::intersection(beastie::Line* line, beastie::Plane* plane, be
  Ogre::Real denom = plane->mNormal.dotProduct(line->mDirection);
  RETURN_IF(Ogre::Math::Abs(denom) < eps, "denom < eps")
  
- Ogre::Real nom = plane->mNormal.dotProduct(line->mPosition) + plane->mDistance;
+ Ogre::Real nom = plane->mNormal.dotProduct(line->mOrigin) + plane->mDistance;
  Ogre::Real t   = -(nom/denom);
  if (t >= 0 && t <= line->mLength)
  {
   intersection.hit = true;
-  intersection.position = line->mPosition + (line->mDirection * t);
+  intersection.position = line->mOrigin + (line->mDirection * t);
  }
 }
 
@@ -388,17 +385,17 @@ void beastie::Tests::intersection(beastie::Line* line,beastie::DynamicMesh* dynM
  
   // Stolen (and slightly re-written) from OgreMath.cpp
   
- size_t i0, i1; Ogre::Real t, u0, u1, v0, v1, u2, v2, alpha, beta, area; NormalisedTriangle triangle;
+ size_t i0, i1; Ogre::Real t, u0, u1, v0, v1, u2, v2, alpha, beta, area;
  
- for (unsigned int i=0;i < dynMesh->mTriangles.mSize;i++)
+ for (unsigned int i=0;i < dynMesh->mTriangles.size();i++)
  {
   
-  triangle = dynMesh->mTriangles.mTriangles[i];
+  NormalisedTriangle& triangle = dynMesh->mTriangles[i];
   
   u1 = triangle.n.dotProduct(line->getDirection());
   CONTINUE_IF(u1 > beastie::eps); // Intersection on otherside of triangle face.
   
-  t = triangle.n.dotProduct(triangle.a - line->getPosition()) / u1;
+  t = triangle.n.dotProduct(triangle.a - line->mOrigin) / u1;
   CONTINUE_IF(t < 0);
   
   u1 = ABS(triangle.n[0]); // n0
@@ -423,8 +420,8 @@ void beastie::Tests::intersection(beastie::Line* line,beastie::DynamicMesh* dynM
   u2 = triangle.c[i0] - triangle.a[i0];
   v2 = triangle.c[i1] - triangle.a[i1];
   
-  u0 = t * line->mDirection[i0] + line->mPosition[i0] -  triangle.a[i0];
-  v0 = t * line->mDirection[i1] + line->mPosition[i1] -  triangle.a[i1];
+  u0 = t * line->mDirection[i0] + line->mOrigin[i0] -  triangle.a[i0];
+  v0 = t * line->mDirection[i1] + line->mOrigin[i1] -  triangle.a[i1];
   
   alpha = u0 * v2 - u2 * v0;
   beta  = u1 * v0 - u0 * v1;
@@ -442,7 +439,7 @@ void beastie::Tests::intersection(beastie::Line* line,beastie::DynamicMesh* dynM
   }
  
   intersection.hit = true;
-  intersection.position = line->mPosition + (line->mDirection * t);
+  intersection.position = line->mOrigin + (line->mDirection * t);
  
   return;
  } // for
@@ -474,4 +471,6 @@ void beastie::Tests::intersection(beastie::DynamicMesh *, beastie::Triangle*, be
 
 
 #undef RETURN_IF
+#undef CONTINUE_IF
 #undef SQUARED
+#undef ABS
