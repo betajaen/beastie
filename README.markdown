@@ -29,7 +29,7 @@ Software Licence
 What is Beastie?
 ----------------
 
-Beastie is a C++ based simplified collision detection library for the [Ogre3D graphics engine](http://www.ogre3d.org), and it only comes in two files, `beastie.h` and `beastie.cpp`. "Beastie" should be always pronounced in a Glaswegian accent. 
+Beastie is a C++ based simplified collision detection library for the [Ogre3D graphics engine](http://www.ogre3d.org), and it is neatly packaged in a single header, `beastie.h`. "Beastie" should be always pronounced in a Glaswegian accent. 
 
 It only detects collisions and does not respond to them as you would typically encounter in a more fully featured physics engine or more advanced collision library.
 However the detections are accurate and are optimised, building some response code on top of beastie shouldn't be to difficult, an example of some of this is in the "wee.cpp" test application that can be found at the beastie Git repository.
@@ -39,10 +39,9 @@ Beastie only uses Ogre3D as a dependency, and is developed with Ogre 1.7 in mind
 Using Beastie
 -------------
 
-All of Beastie functions are contained in the @beastie@ namespace, any functions are put in Utils or Tests based on their use. All classes and functions use the camelCase notation, with the exception that class names have an uppercased first character.
+All of Beastie functions are contained in the `beastie` namespace, any functions are put in Utils or Tests based on their use. All classes and functions use the camelCase notation, with the exception that class names have an uppercased first character.
 
-To include it in your project, simply copy the `beastie.cpp` and `beastie.h` files into your project directory, then include them in your project, making sure you correctly include and link to Ogre.
-
+To include it in your project, simply copy the `beastie.h` files into your project directory, then include them in your project, making sure you correctly include and link to Ogre. For compliation speed reasons you may want to `#include` beastie in your Static headers file.
 
 Shapes
 ------
@@ -121,26 +120,16 @@ The distance of the raycast is the distance between the line's origin and the po
 
     Ogre::Real rayLength = line.getPosition().distance(intersection.position);
 
-Triangle
---------
+Plane
+-----
 
-Triangles are a single triangle in 3D space. Triangles can be used in any event where a single triangle may be needed, but many in the case of many Triangles being used at once, you should consider using the StaticMesh or DynamicMesh for performance reasons.
+Planes are infinite planes in 3D Space. Planes are useful for ground, or as safety nets to prevent anything falling into infinity.
 
-A Triangle is made from four properties, using the NormalisedTriangle class as a base:
+A Plane is made from two properties;
 
-* A vertex (`Ogre::Vector3`)
-* B vertex (`Ogre::Vector3`)
-* C vertex (`Ogre::Vector3`)
 * Normal (`Ogre::Vector3`)
-
-### Vertices
-
-The vertices can be changed at runtime using the set/get functions `Triangle::setVertexA`, `Triangle::getVertexA`,`Triangle::setVertexB`, `Triangle::getVertexB`,`Triangle::setVertexC` and `Triangle::getVertexC`.
-
-All vertices have the same range as Point's position.
+* Distance (`Ogre::Real`)
 
 ### Normal
 
-The normal is optional, and can be auto-calculated from the A,B,C vertices. This is achieved via two of the constructors or `Triangle::calcualteNormal`.
-
-The normal should be in range of [-1,-1,-1]...[1,1,1] and must be normalised before use (`Ogre::Vector3::normalise`).
+Normal is the face of the place.
