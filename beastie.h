@@ -1,51 +1,99 @@
-/*                                                                             
-                                                                               
-        crivvens!                                                              
-                   such                                                        
-                                                                               
-                         a                                                     
-                                                                               
-                            wee                                                
-                                                                               
-  88                                                       88              88  
-  88                                                ,d     ""              88  
-  88                                                88                     88  
-  88,dPPYba,    ,adPPYba,  ,adPPYYba,  ,adPPYba,  MM88MMM  88   ,adPPYba,  88  
-  88P'    "8a  a8P_____88  ""     `Y8  I8[    ""    88     88  a8P_____88  88  
-  88       d8  8PP"""""""  ,adPPPPP88   `"Y8ba,     88     88  8PP"""""""  ""  
-  88b,   ,a8"  "8b,   ,aa  88,    ,88  aa    ]8I    88,    88  "8b,   ,aa  aa  
-  8Y"Ybbd8"'    `"Ybbd8"'  `"8bbdP"Y8  `"YbbdP"'    "Y888  88   `"Ybbd8"'  88  
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                                                               
- Copyright (c) 2010 Robin Southern                                             
-                                                                               
- Permission is hereby granted, free of charge, to any person obtaining a copy  
- of this software and associated documentation files (the "Software"), to deal 
- in the Software without restriction, including without limitation the rights  
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell     
- copies of the Software, and to permit persons to whom the Software is         
- furnished to do so, subject to the following conditions:                      
-                                                                               
- The above copyright notice and this permission notice shall be included in    
- all copies or substantial portions of the Software.                           
-                                                                               
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR    
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,      
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE   
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER        
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN     
- THE SOFTWARE.                                                                 
-                                                                               
-*/
+// beastie.h, version: 20, date: 12-July-2010
 
+/*
+
+
+
+                                                                                  
+                                                                                  
+           crivvens!                                                              
+                      such                                                        
+                                                                                  
+                            a                                                     
+                                                                                  
+                               wee                                                
+                                                                                  
+     88                                                       88              88  
+     88                                                ,d     ""              88  
+     88                                                88                     88  
+     88,dPPYba,    ,adPPYba,  ,adPPYYba,  ,adPPYba,  MM88MMM  88   ,adPPYba,  88  
+     88P'    "8a  a8P_____88  ""     `Y8  I8[    ""    88     88  a8P_____88  88  
+     88       d8  8PP"""""""  ,adPPPPP88   `"Y8ba,     88     88  8PP"""""""  ""  
+     88b,   ,a8"  "8b,   ,aa  88,    ,88  aa    ]8I    88,    88  "8b,   ,aa  aa  
+     8Y"Ybbd8"'    `"Ybbd8"'  `"8bbdP"Y8  `"YbbdP"'    "Y888  88   `"Ybbd8"'  88  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+
+
+
+
+Software Licence
+----------------
+                                                                                  
+    Copyright (c) 2010 Robin Southern                                             
+                                                                                  
+    Permission is hereby granted, free of charge, to any person obtaining a copy  
+    of this software and associated documentation files (the "Software"), to deal 
+    in the Software without restriction, including without limitation the rights  
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell     
+    copies of the Software, and to permit persons to whom the Software is         
+    furnished to do so, subject to the following conditions:                      
+                                                                                  
+    The above copyright notice and this permission notice shall be included in    
+    all copies or substantial portions of the Software.                           
+                                                                                  
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR    
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,      
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE   
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER        
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN     
+    THE SOFTWARE.                                                                 
+
+What is Beastie?
+----------------
+
+Beastie is a C++ based simplified collision detection library for the [Ogre3D graphics engine](http://www.ogre3d.org), and it is neatly packaged in a single header, `beastie.h`. "Beastie" should be always pronounced in a Glaswegian accent. 
+
+It only detects collisions and does not respond to them as you would typically encounter in a more fully featured physics engine or more advanced collision library.
+However the detections are accurate and are optimised, building some response code on top of beastie shouldn't be to difficult, an example of some of this is in the "beastie.example.cpp" test application that can be found at the beastie Git repository.
+
+Beastie only uses Ogre3D as a dependency, and is developed with Ogre 1.7 in mind; but should work with any 1.x version.
+
+Using Beastie
+-------------
+
+All of beastie classes are contained in the `beastie` namespace. All member functions use the `camelCase` notation where as the class names use the `lower_case_underscore_notation`. There is a private namespace called `beastie::its_a_secret` this is to hold the internal workings of beastie and shouldn't be needed be to used by an application, or it's programmer.
+
+To include beastie in your project, simply copy the `beastie.h` file into your project directory, then include it in your project, making sure you correctly include and link to Ogre. To increase compliation speed you may want to `#include` beastie in your static headers file.
+
+Collisions
+----------
+
+Testing for collisions may be done via the `intercept` member function either in; `line`, `plane`, `box` or `collision_tree` classes. Additionally duplicate static functions can be found in the `intersections` class.
+
+    intersection_result result;
+    line.intersect(my_plane, result);               // These two lines are interchangable
+    intersections::line(my_line, my_plane, result); // based on preference.
+
+The available collisions may be summed up in this table.
+
+    +-------+------+-----+------+------+
+    |       | Line | Box | Plane| Tree |
+    +-------+------+-----+------+------+
+    | Line  | ?    | ?   | ?    | Yes  |
+    | Box   | Yes  | ?   | ?    | ?    |
+    | Plane | ?    | ?   | ?    | ?    |
+    | Tree  | ?    | ?   | ?    |      |
+    +-------+------+-----+------+------+
+
+*/
 
 #ifndef crivvens_such_a_wee_beastie_h
 #define crivvens_such_a_wee_beastie_h
@@ -111,9 +159,32 @@ static const Ogre::Real negativeEpsSquared = -epsSquared;
 namespace its_a_secret
 {
  
+ Ogre::Real inline absolute(const Ogre::Real& val)
+ {
+  return fabsf(val);
+ }
+ 
  template<typename> struct intersections_t
  {
   
+  static inline bool line(const beastie::line& ln, const beastie::plane& pl, Ogre::Vector3& globalPos)
+  {
+   Ogre::Real denom = pl.normal().dotProduct(ln.direction());
+   
+   if (Ogre::Math::Abs(denom) < eps)
+    return false;
+   
+   Ogre::Real nom = pl.normal().dotProduct(ln->origin()) + pl.distance;
+   Ogre::Real t   = -(nom/denom);
+   
+   if (t >= 0 && t <= ln.length())
+   {
+    globalPos = ln.at(t);
+    return true;
+   }
+   
+   return false;
+  }
   
   static inline bool line(const beastie::line& ln, const beastie::box& bx, Ogre::Vector3& globalPos)
   {
@@ -133,6 +204,117 @@ namespace its_a_secret
    return true;
   }
   
+  static inline bool line(const beastie::line& ln, triangle* tri, Ogre::Real& distance)
+  {
+   std::pair<bool, float> res = Ogre::Math::intersects(ln.ray(), tri->a, tri->b, tri->c, tri->n, true, false);
+   distance = res.second;
+   return res.first;
+  }
+  
+  static inline bool line(const beastie::line& ln, mesh* msh, const Ogre::Matrix4& meshGlobalTransformation, Ogre::Real& distance, int& triangleId, Ogre::Vector3& hitPosition)
+  {
+   // Convert matrix into local space matrix.
+   static Ogre::Matrix4 localSpace;
+   localSpace = meshGlobalTransformation.inverse();
+   
+   // Convert line to mesh local space.
+   beastie::line local_ln(localSpace * ln.origin(), localSpace * ln.end());
+   
+   float bestDistance = local_ln.length();
+   triangle *bestTriangle = 0;
+   
+   triangle *tri = msh->begin(), *end = msh->end();
+   
+   Ogre::Real t, denom, n0, n1, n2, u1, v1, u2, v2, u0, v0, alpha, beta, area, tolerance;
+   size_t i0, i1;
+   
+   while(tri != end)
+   {
+    denom = (*tri).n.dotProduct(local_ln.direction());
+    
+    if (denom > beastie::eps)
+    {
+     tri++;
+     continue;
+    }
+    
+    t = (*tri).n.dotProduct((*tri).a - local_ln.origin()) / denom;
+
+    if (t < 0 || t > bestDistance)
+    {
+     tri++;
+     continue;
+    }
+    
+    n0 = absolute((*tri).n[0]);
+    n1 = absolute((*tri).n[1]);
+    n2 = absolute((*tri).n[2]);
+    
+    i0 = 1;
+    i1 = 2;
+    
+    if (n1 > n2)
+    {
+     if (n1 > n0)
+      i0 = 0;
+    }
+    else
+    {
+     if (n2 > n0)
+      i1 = 0;
+    }
+    
+    u0 = t * local_ln.direction()[i0] + local_ln.origin()[i0] - (*tri).a[i0];
+    v0 = t * local_ln.direction()[i1] + local_ln.origin()[i1] - (*tri).a[i1];
+
+    u1 = (*tri).b[i0] - (*tri).a[i0];
+    v1 = (*tri).b[i1] - (*tri).a[i1];
+
+    u2 = (*tri).c[i0] - (*tri).a[i0];
+    v2 = (*tri).c[i1] - (*tri).a[i1];
+
+    alpha = u0 * v2 - u2 * v0;
+    beta  = u1 * v0 - u0 * v1;
+    area  = u1 * v2 - u2 * v1;
+    
+    tolerance = beastie::negativeEps * area;
+    
+    if (area > 0)
+    {
+     if (alpha < tolerance || beta < tolerance || alpha+beta > area-tolerance)
+     {
+      tri++;
+      continue;
+     }
+    }
+    else
+    {
+     if (alpha > tolerance || beta > tolerance || alpha+beta < area-tolerance)
+     {
+      tri++;
+      continue;
+     }
+    }
+    
+     if (bestTriangle == 0 || t < bestDistance)
+     {
+      bestTriangle = tri;
+      bestDistance = t;
+     }
+
+    tri++;
+   }
+   
+   if (bestTriangle == 0)
+    return false;
+   
+   hitPosition = meshGlobalTransformation * local_ln.at(bestDistance);
+   distance = ln.origin().distance(hitPosition);
+   triangleId = bestTriangle - msh->begin();
+   
+   return true;
+  }
+
  };
  
  /*! class. line
@@ -148,13 +330,13 @@ namespace its_a_secret
  {
   public:
    
-   /*! constructor. line_t
+   /*! constructor. line
        desc.
            Empty constructor. Line has no direction or length.
    */
    inline line_t() : lineLength(0) {}
    
-   /*! constructor. line_t
+   /*! constructor. line
        desc.
            Constructor with line origin, direction and length arguments.
        note.
@@ -163,41 +345,71 @@ namespace its_a_secret
    inline line_t(const Ogre::Vector3& origin, const Ogre::Vector3& direction, const Ogre::Real& length)
   : lineOrigin(origin), lineDirection(direction), lineLength(length) {}
    
-  /*! constructor. line_t
+  /*! constructor. line
       desc.
           Constructor that creates a line from an Ogre Ray and length.
   */
   inline line_t(const Ogre::Ray& ray, const Ogre::Real& rayLength)
   : lineOrigin(ray.getOrigin()), lineDirection(ray.getDirection()), lineLength(rayLength) {}
   
+  /*! constructor. line
+      desc.
+          Constructor that creates a line from two points
+  */
+  inline line_t(const Ogre::Vector3& line_origin, const Ogre::Vector3& line_end)
+  : lineOrigin(line_origin)
+  {
+   lineDirection = (line_end - lineOrigin);
+   lineLength = lineDirection.length();
+   lineDirection.normalise();
+  }
+
   /*! constructor. origin
       desc.
           Get the line's origin
   */
-  Ogre::Vector3  origin() const { return lineOrigin; }
-
+  inline Ogre::Vector3  origin() const
+  {
+   return lineOrigin;
+  }
+  
+  /*! constructor. end
+      desc.
+          Get the line's end position.
+  */
+  inline Ogre::Vector3 end() const
+  {
+   return at(lineLength);
+  }
+  
   /*! constructor. direction
       desc.
           Get the line's direction
   */
-  Ogre::Vector3  direction() const
-       { return lineDirection; }
+  inline Ogre::Vector3  direction() const
+  {
+   return lineDirection;
+  }
 
   /*! constructor. length
       desc.
           Get the line's length
   */
-  Ogre::Real  length() const
-       { return lineLength; }
+  inline Ogre::Real  length() const
+  {
+   return lineLength;
+  }
 
   /*! constructor. at
       desc.
           Get a coordinate from the origin based upon the direction and given distance.
   */
-  Ogre::Vector3  at(const Ogre::Real& distance) const 
-       { return lineOrigin + (lineDirection * distance); }
+  inline Ogre::Vector3  at(const Ogre::Real& distance) const 
+  {
+   return lineOrigin + (lineDirection * distance);
+  }
   
-  Ogre::Ray ray() const
+  inline Ogre::Ray ray() const
   {
    return Ogre::Ray(lineOrigin, lineDirection);
   }
@@ -362,9 +574,15 @@ namespace its_a_secret
    typedef std::vector<triangle> triangles;
    
    mesh_t(const Ogre::MeshPtr& meshPtr)
-   : meshOgreMesh(meshPtr), meshReferences(0)
+   : meshOgreMesh(meshPtr), meshReferences(0), meshTriangles(0), meshNbTriangles(0)
    {
     _inspect();
+   }
+   
+  ~mesh_t()
+   {
+    if (meshTriangles)
+     free(meshTriangles);
    }
    
    Ogre::AxisAlignedBox& getAABB()
@@ -372,9 +590,28 @@ namespace its_a_secret
     return meshAABB;
    }
    
+   inline triangle* begin()
+   {
+    return meshTriangles;
+   }
+
+   inline triangle* end()
+   {
+    return (meshTriangles + meshNbTriangles);
+   }
+   
+   inline triangle& at(int id)
+   {
+    return *(meshTriangles + id);
+   }
+   
+   inline size_t   nbTriangles() const
+   {
+    return meshNbTriangles;
+   }
+
    void _inspect()
    {
-    meshTriangles.clear();
     
     Ogre::Vector3* verts = 0;
     unsigned long* indices = 0;
@@ -459,22 +696,26 @@ namespace its_a_secret
      currentOffset = nextOffset;
     } // for
     
+    if (meshTriangles)
+     free(meshTriangles);
     
-    meshTriangles.reserve(nbIndices / 3);
+    meshNbTriangles = nbIndices / 3;
+    meshTriangles = (triangle*) malloc(sizeof(triangle) * meshNbTriangles);
+    
     meshAABB.setNull();
     meshNextTriangleId = 0;
     
+    triangle* tri = meshTriangles;
     for (size_t i=0;i < nbIndices;i+=3)
     {
-     triangle tri;
-     tri.a = verts[indices[i]];
-     tri.b = verts[indices[i+1]];
-     tri.c = verts[indices[i+2]];
-     tri.n = Ogre::Math::calculateBasicFaceNormal(tri.a, tri.b, tri.c);
-     meshAABB.merge(tri.a);
-     meshAABB.merge(tri.b);
-     meshAABB.merge(tri.c);
-     meshTriangles.push_back(tri);
+     tri->a = verts[indices[i]];
+     tri->b = verts[indices[i+1]];
+     tri->c = verts[indices[i+2]];
+     tri->n = Ogre::Math::calculateBasicFaceNormal(tri->a, tri->b, tri->c);
+     meshAABB.merge(tri->a);
+     meshAABB.merge(tri->b);
+     meshAABB.merge(tri->c);
+     tri++;
     }
     
     delete indices;
@@ -482,31 +723,32 @@ namespace its_a_secret
     
    }
    
-    bool raycast(const line& line, const Ogre::Vector3& globalPos, const Ogre::Quaternion& globalOrientation, intersection_result& int_result)
+    bool raycast(const line& global_ln, const Ogre::Matrix4& transform, intersection_result& int_result)
     {
      
-     Ogre::Ray ray(line.origin(), line.direction());
+     // Convert to local space.
+     Ogre::Matrix4 inverse = transform.inverse();
+     line local_ln = line(inverse * global_ln.origin(), inverse * global_ln.end());
+     
+     
+     Ogre::Ray ray = local_ln.ray();
      std::pair<bool, float> pair;
      
-     float bestDistance = line.length();
+     float foundDistance = 0;
+     float bestDistance = local_ln.length();
      int bestTriangle = -1;
      
-     for (unsigned int i=0;i < meshTriangles.size();i++)
+     for (size_t i=0;i < meshTriangles.size();i++)
      {
       
-      triangle tri = meshTriangles[i];
+      triangle& tri = meshTriangles[i];
  
-      tri.a = (globalOrientation * tri.a) + globalPos;
-      tri.b = (globalOrientation * tri.b) + globalPos;
-      tri.c = (globalOrientation * tri.c) + globalPos;
-    
       pair = Ogre::Math::intersects(ray, tri.a, tri.b, tri.c, tri.n, true, false);
       
       if (pair.first && (pair.second <= bestDistance))
       {
        bestTriangle = i;
        bestDistance = pair.second;
-       //std::cout << bestDistance << "\n";
       }
      
       
@@ -515,15 +757,18 @@ namespace its_a_secret
      if (bestTriangle == -1)
       return false;
      
-     int_result.distance = bestDistance;
-     int_result.globalPosition = line.origin() + (line.direction() * bestDistance);
+     int_result.distance = bestDistance; /// TODO: This is in local space, has to be converted to world space.
+     int_result.globalPosition = local_ln.at(bestDistance);
 
      int_result.hitMesh = this;
      int_result.hitTriangle = meshTriangles[bestTriangle];
-     int_result.hitTriangle.a = (globalOrientation * int_result.hitTriangle.a) + globalPos;
-     int_result.hitTriangle.b = (globalOrientation * int_result.hitTriangle.b) + globalPos;
-     int_result.hitTriangle.c = (globalOrientation * int_result.hitTriangle.c) + globalPos;
-     int_result.globalNormal =int_result.hitTriangle.n; // temp.
+     int_result.hitTriangle.a = transform * int_result.hitTriangle.a;
+     int_result.hitTriangle.b = transform * int_result.hitTriangle.b;
+     int_result.hitTriangle.c = transform * int_result.hitTriangle.c;
+     //int_result.hitTriangle.a = (globalOrientation * int_result.hitTriangle.a) + globalPos;
+     //int_result.hitTriangle.b = (globalOrientation * int_result.hitTriangle.b) + globalPos;
+     //int_result.hitTriangle.c = (globalOrientation * int_result.hitTriangle.c) + globalPos;
+     int_result.globalNormal = int_result.hitTriangle.n; // temp.
      return true;
       
     } //  bool raycast(...)
@@ -531,8 +776,10 @@ namespace its_a_secret
 
    void _draw(Ogre::ManualObject* obj, const Ogre::Matrix4& transform)
    {
-    Ogre::Vector3 a,b,c;
-    for (triangles::iterator it = meshTriangles.begin(); it != meshTriangles.end(); it++)
+    
+    Ogre::Vector3 a, b, c;
+    
+    for (triangle* it = begin(); it != end(); it++)
     {
      a = transform * (*it).a;
      b = transform * (*it).b;
@@ -570,7 +817,9 @@ namespace its_a_secret
   protected:
    
    Ogre::MeshPtr         meshOgreMesh;
-   triangles             meshTriangles;
+   triangle*             meshTriangles;
+   unsigned int          meshNbTriangles;
+   
    Ogre::AxisAlignedBox  meshAABB;
    unsigned int          meshNextTriangleId;
    unsigned int          meshReferences;
@@ -695,7 +944,19 @@ namespace its_a_secret
 
    inline bool raycast(const line& ln, intersection_result& int_result)
    {
-    return octreeNodeMesh->raycast(ln, octreeNodePosition, octreeNodeOrientation, int_result);
+    
+    int tri_id = 0;
+    
+    if (intersections::line(ln, octreeNodeMesh, octreeNodeTransform, int_result.distance, tri_id, int_result.globalPosition))
+    {
+     int_result.hitTriangle = octreeNodeMesh->at(tri_id);
+     int_result.hitTriangle.a = octreeNodeTransform * int_result.hitTriangle.a;
+     int_result.hitTriangle.b = octreeNodeTransform * int_result.hitTriangle.b;
+     int_result.hitTriangle.c = octreeNodeTransform * int_result.hitTriangle.c;
+     return true;
+    }
+    
+    return false;
    }
    
    void _update()
@@ -1476,6 +1737,8 @@ namespace its_a_secret
  }; // class colision_tree_t<typename>
   
  } // namespace its_a_secret
+
+
 
 
 
