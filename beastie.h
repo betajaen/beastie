@@ -78,7 +78,7 @@ Collisions
 
 Testing for collisions may be done via the `intercept` member function either in; `line`, `plane`, `box` or `collision_tree` classes. Additionally duplicate static functions can be found in the `intersections` class.
 
-    intersection_result result;
+    ray_query result;
     line.intersect(my_plane, result);               // These two lines are interchangable
     intersections::line(my_line, my_plane, result); // based on preference.
 
@@ -142,13 +142,19 @@ struct triangle
  Ogre::Vector3 a,b,c,n;
 };
 
-struct intersection_result
+struct ray_query
 {
+ bool           didHit;
  Ogre::Real     distance;
  Ogre::Vector3  globalPosition;
- Ogre::Vector3  globalNormal;
  mesh*          hitMesh;
  triangle       hitTriangle;
+ 
+ bool operator < (const ray_query& other) const
+ {
+  return distance < other.distance;
+ }
+
 };
 
 static const Ogre::Real eps = std::numeric_limits<Ogre::Real>::epsilon();
@@ -158,6 +164,7 @@ static const Ogre::Real negativeEpsSquared = -epsSquared;
 
 namespace its_a_secret
 {
+ 
  
  Ogre::Real inline absolute(const Ogre::Real& val)
  {
@@ -214,7 +221,7 @@ namespace its_a_secret
   static inline bool line(const beastie::line& ln, mesh* msh, const Ogre::Matrix4& meshGlobalTransformation, Ogre::Real& distance, int& triangleId, Ogre::Vector3& hitPosition)
   {
    // Convert matrix into local space matrix.
-   static Ogre::Matrix4 localSpace;
+   Ogre::Matrix4 localSpace;
    localSpace = meshGlobalTransformation.inverse();
    
    // Convert line to mesh local space.
@@ -222,17 +229,45 @@ namespace its_a_secret
    
    float bestDistance = local_ln.length();
    triangle *bestTriangle = 0;
-   
    triangle *tri = msh->begin(), *end = msh->end();
+
+#if 1
    
+   Ogre::Real t = 0;
+   bool       ret = false;
+   
+   while(tri != end)
+   {
+    
+    ret = line(local_ln, tri, t);
+    
+    if (ret == false)
+    {
+     tri++;
+     continue;
+    }
+    
+    if (bestTriangle == 0 || t < bestDistance)
+    {
+     bestTriangle = tri;
+     bestDistance = t;
+    }
+    
+    tri++;
+    
+   }
+
+#else
+
    Ogre::Real t, denom, n0, n1, n2, u1, v1, u2, v2, u0, v0, alpha, beta, area, tolerance;
    size_t i0, i1;
    
    while(tri != end)
    {
+    
     denom = (*tri).n.dotProduct(local_ln.direction());
     
-    if (denom > beastie::eps)
+    if (denom > 0) //beastie::eps)
     {
      tri++;
      continue;
@@ -304,6 +339,7 @@ namespace its_a_secret
 
     tri++;
    }
+#endif
    
    if (bestTriangle == 0)
     return false;
@@ -723,57 +759,6 @@ namespace its_a_secret
     
    }
    
-    bool raycast(const line& global_ln, const Ogre::Matrix4& transform, intersection_result& int_result)
-    {
-     
-     // Convert to local space.
-     Ogre::Matrix4 inverse = transform.inverse();
-     line local_ln = line(inverse * global_ln.origin(), inverse * global_ln.end());
-     
-     
-     Ogre::Ray ray = local_ln.ray();
-     std::pair<bool, float> pair;
-     
-     float foundDistance = 0;
-     float bestDistance = local_ln.length();
-     int bestTriangle = -1;
-     
-     for (size_t i=0;i < meshTriangles.size();i++)
-     {
-      
-      triangle& tri = meshTriangles[i];
- 
-      pair = Ogre::Math::intersects(ray, tri.a, tri.b, tri.c, tri.n, true, false);
-      
-      if (pair.first && (pair.second <= bestDistance))
-      {
-       bestTriangle = i;
-       bestDistance = pair.second;
-      }
-     
-      
-     } // for
-     
-     if (bestTriangle == -1)
-      return false;
-     
-     int_result.distance = bestDistance; /// TODO: This is in local space, has to be converted to world space.
-     int_result.globalPosition = local_ln.at(bestDistance);
-
-     int_result.hitMesh = this;
-     int_result.hitTriangle = meshTriangles[bestTriangle];
-     int_result.hitTriangle.a = transform * int_result.hitTriangle.a;
-     int_result.hitTriangle.b = transform * int_result.hitTriangle.b;
-     int_result.hitTriangle.c = transform * int_result.hitTriangle.c;
-     //int_result.hitTriangle.a = (globalOrientation * int_result.hitTriangle.a) + globalPos;
-     //int_result.hitTriangle.b = (globalOrientation * int_result.hitTriangle.b) + globalPos;
-     //int_result.hitTriangle.c = (globalOrientation * int_result.hitTriangle.c) + globalPos;
-     int_result.globalNormal = int_result.hitTriangle.n; // temp.
-     return true;
-      
-    } //  bool raycast(...)
-    
-
    void _draw(Ogre::ManualObject* obj, const Ogre::Matrix4& transform)
    {
     
@@ -942,21 +927,23 @@ namespace its_a_secret
     return octreeNodeWorldAABB;
    }
 
-   inline bool raycast(const line& ln, intersection_result& int_result)
+   inline ray_query raycast(const line& ln)
    {
     
     int tri_id = 0;
-    
-    if (intersections::line(ln, octreeNodeMesh, octreeNodeTransform, int_result.distance, tri_id, int_result.globalPosition))
+    ray_query query;
+    query.didHit = intersections::line(ln, octreeNodeMesh, octreeNodeTransform, query.distance, tri_id, query.globalPosition);
+
+    if (query.didHit)
     {
-     int_result.hitTriangle = octreeNodeMesh->at(tri_id);
-     int_result.hitTriangle.a = octreeNodeTransform * int_result.hitTriangle.a;
-     int_result.hitTriangle.b = octreeNodeTransform * int_result.hitTriangle.b;
-     int_result.hitTriangle.c = octreeNodeTransform * int_result.hitTriangle.c;
-     return true;
+     query.hitTriangle = octreeNodeMesh->at(tri_id);
+     query.hitTriangle.a = octreeNodeTransform * query.hitTriangle.a;
+     query.hitTriangle.b = octreeNodeTransform * query.hitTriangle.b;
+     query.hitTriangle.c = octreeNodeTransform * query.hitTriangle.c;
+     query.hitMesh = octreeNodeMesh;
     }
     
-    return false;
+    return query;
    }
    
    void _update()
@@ -1127,7 +1114,7 @@ namespace its_a_secret
    
    struct sorted_node
    {
-    Ogre::Vector3 p; // intersection position
+    Ogre::Real    p; // intersection distance
     node*         n; // node itself.
    };
    
@@ -1139,7 +1126,7 @@ namespace its_a_secret
     ClosestDistanceSortNodeFunction(const Ogre::Vector3& o) : origin(o) {}
     bool operator() (sorted_node& i, sorted_node& j)
     {
-     return (i.p.squaredDistance(origin) < j.p.squaredDistance(origin));
+     return (i.p < j.p);
     }
     
     Ogre::Vector3 origin;
@@ -1395,27 +1382,27 @@ namespace its_a_secret
    
    bool           isMeshLoaded(const Ogre::String& name);
    
-   bool raycast(const Ogre::Ray& ray, const Ogre::Real& length, intersection_result& result)
+   bool raycast(const Ogre::Ray& ray, const Ogre::Real& length, ray_query& result)
    {
     return raycast(line(ray, length), result);
    }
 
-   bool raycastBounds(const Ogre::Ray& ray, const Ogre::Real& length, intersection_result& result)
+   bool raycastBounds(const Ogre::Ray& ray, const Ogre::Real& length, ray_query& result)
    {
     return raycast(line(ray, length), result);
    }
 
-   bool  raycast(const Ogre::Vector3& origin, const Ogre::Vector3& normalisedDirection, const Ogre::Real& length, intersection_result& int_result)
+   bool  raycast(const Ogre::Vector3& origin, const Ogre::Vector3& normalisedDirection, const Ogre::Real& length, ray_query& int_result)
    {
     return raycast(line(origin, normalisedDirection, length), int_result);
    }
 
-   bool  raycastBounds(const Ogre::Vector3& origin, const Ogre::Vector3& normalisedDirection, const Ogre::Real& length, intersection_result&)
+   bool  raycastBounds(const Ogre::Vector3& origin, const Ogre::Vector3& normalisedDirection, const Ogre::Real& length, ray_query&)
    {
     return raycastBounds(line(origin, normalisedDirection, length), int_result);
    }
 
-   bool  raycastBounds(const line& line, intersection_result& int_result)
+   bool  raycastBounds(const line& line, ray_query& int_result)
    {
     sortedNodeList list;
     findNodesIn(line, list, false, collisionTreeOctree);
@@ -1438,48 +1425,57 @@ namespace its_a_secret
     return true;
    }
 
-   bool  raycast(const line& line, intersection_result& int_result)
+   bool  raycast(const line& line, ray_query& int_result)
    {
     
-    sortedNodeList list;
-    findNodesIn(line, list, false, collisionTreeOctree);
+    sortedNodeList nodes;
+    nodes.reserve(4);
+    findNodesIn(line, nodes, false, collisionTreeOctree);
     
-    if (list.size() == 0)
+    if (nodes.size() == 0)
      return false;
-
+    
     // get intersect positions from line to node AABB.
-    for (sortedNodeList::iterator it = list.begin(); it != list.end(); it++)
-     intersections::line(line, (*it).n->getWorldAABB(), (*it).p);
-    
-    // sort the nodeList by closest first, using intersect positions just found.
-    std::sort(list.begin(), list.end(), ClosestDistanceSortNodeFunction(line.origin()));
-    
-    // Ray cast closest first, then the further ones away. If a distance is closer then
-    // that is more likely to be the triangle.
-     
-    // Although the first node is most likely to be hit, there are cases even though the
-    // AABB is closer, that a triangle of a node further away is closer to the one with
-    // the closest AABB.
-    
-    intersection_result temp;
-    intersection_result working;
-    working.distance = 0;
-    
-    for (sortedNodeList::iterator it = list.begin(); it != list.end(); it++)
+    Ogre::Vector3 aabbInt;
+    for (sortedNodeList::iterator it = nodes.begin(); it != nodes.end(); it++)
     {
-     temp.distance = 0;
-     (*it).n->raycast(line, temp);
-     if (working.distance == 0 || temp.distance < working.distance)
-      working = temp;
+     intersections::line(line, (*it).n->getWorldAABB(), aabbInt);
+     (*it).p = aabbInt.squaredDistance(line.origin());
+    }
+
+    // sort the nodeList by closest first, using intersect positions just found.
+    std::sort(nodes.begin(), nodes.end(), ClosestDistanceSortNodeFunction(line.origin()));
+    
+#if 0
+    for (sortedNodeList::iterator it = nodes.begin(); it != nodes.end(); it++)
+    {
+     std::cout << "[" << (*it).p << "] => " << (*it).n->getName() << "\n";
+    }
+#endif
+    
+    std::vector<ray_query> queries;
+    for (size_t i = 0; i < nodes.size(); i++)
+    {
+     ray_query result = nodes[i].n->raycast(line);
+     if (result.didHit)
+     {
+      queries.push_back(result);
+#if 0
+      // Break early on the closest AABB on a sucessful result?
+      // -- Disabled due to inaccuracy.
+      if (i == 0)
+       break;
+#endif
+     }
     }
     
-    int_result.distance = working.distance;
-    int_result.globalPosition = working.globalPosition;
-    int_result.globalNormal = working.globalNormal;
-    int_result.hitMesh = working.hitMesh;
-    int_result.hitTriangle = working.hitTriangle;
+    if (queries.size() == 0)
+     return false;
     
-    return int_result.distance != 0.f;
+    std::sort(queries.begin(), queries.end());
+    
+    int_result = queries[0];
+    return true;
    }
    
    /*! function. findNodesIn
@@ -1565,8 +1561,6 @@ namespace its_a_secret
     
     if (box.isInfinite())
      return BoxIntersection_Intersect;
-    
-    //std::cout << "intersect.a\n";
 
     bool inside = true;
     const Vector3& boxMin = box.getMinimum();
