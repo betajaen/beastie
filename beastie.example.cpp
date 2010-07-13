@@ -1,6 +1,7 @@
-
+#include "OGRE/OGRE.h"
 #include "OGRE/SdkSample.h"
 #include "OGRE/SamplePlugin.h"
+
 #include "beastie.h"
 
 using namespace Ogre;
@@ -12,37 +13,50 @@ class _OgreSampleClassExport BeastieExample : public SdkSample
 public:
  
  beastie::collision_tree* mTree;
- Ogre::ManualObject*      testObj;
+ beastie::plane           mPlane;
+
+ Ogre::SceneNode*         mVisualDebuggerNode;
  
  void makeScene()
  {
   
-  beastie::plane pl;
-  pl.distance(300);
-  pl.normal(0,1,0);
-  
-  beastie::box bx;
-  bx.max();
-
-  
+  // All our mesh collision detection goes through a collision tree, this is 
+  // equivalent to an Ogre SceneManager, or a large portion of it.
   mTree = OGRE_NEW beastie::collision_tree();
   
-  SceneNode* house = createNodeEntityPair("tudorhouse.mesh", Vector3(-800,550,-800));
+  // Other low-res collision detection is achieved via the ground plane, such where the mouse clicks.
+  mPlane = beastie::plane(Ogre::Vector3::UNIT_Y);
   
-  mTree->createNode("tudorhouse.mesh", Vector3(-800,550,-800));
-  
-  SceneNode* house2 = createNodeEntityPair("tudorhouse.mesh", Vector3(-850,550,-850));
-  
-  mTree->createNode("tudorhouse.mesh", Vector3(-850,550,-850));
-  
-  mTree->renderVisualDebugger(mSceneMgr->getRootSceneNode());
 
-  testObj = mSceneMgr->createManualObject();
-  mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(testObj);
-  testObj->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_LIST);
-  testObj->position(0,0,0);
-  testObj->position(0,0,0);
-  testObj->end();
+  // Create 10 tudor houses, randomly.
+  for (unsigned int i=0;i < 10;i++)
+  {
+   
+   Ogre::Vector3 v;
+   v.x = Ogre::Math::RangeRandom(-7500,7500);
+   v.y = 550;
+   v.z = Ogre::Math::RangeRandom(-7500,7500);
+   
+   // Create the SceneNode/Entity
+   createNodeEntityPair("tudorhouse.mesh", v);
+
+   // Create the appropriate collision object at the same position, using the same mesh.
+   mTree->createNode("tudorhouse.mesh", v);
+   
+  }
+  
+  
+  // Create the "VisualDebugger"
+  // Need's a node to display it too.
+  mVisualDebuggerNode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
+  
+  // Tell the tree to create/render it once.
+  mTree->renderVisualDebugger(mVisualDebuggerNode);
+  
+  // Then hide it.
+  mVisualDebuggerNode->setVisible(false);
+  
+  
  }
 
  void destroyScene()
@@ -64,41 +78,82 @@ public:
   
   Ogre::Ray ray = mTrayMgr->getCursorRay(mCamera);
 
-  beastie::intersection_result result;
+  beastie::ray_query result;
   
+  Ogre::Timer timer;
+  unsigned long rayTime = 0;
+  
+  timer.reset();
   bool ret = mTree->raycast(ray, 10000, result);
+  rayTime = timer.getMicroseconds();
   
-  testObj->beginUpdate(0);
+  mResultObject->beginUpdate(0);
+  
   if (ret)
   {
-   std::cout << "Distance => " << result.distance << "\n";
-   testObj->position(result.hitTriangle.a);
-   testObj->position(result.hitTriangle.b);
-   testObj->position(result.hitTriangle.b);
-   testObj->position(result.hitTriangle.c);
-   testObj->position(result.hitTriangle.c);
-   testObj->position(result.hitTriangle.a);
-   
-   Ogre::Vector3 mid = result.hitTriangle.a.midPoint(result.hitTriangle.b);
-   mid = mid.midPoint(result.hitTriangle.c);
+   // Hit something.
 
-   testObj->position(mid);
-   testObj->position(mid + (result.hitTriangle.n * 50));
+   mResultObject->position(result.hitTriangle.a + (result.hitTriangle.n * 0.3f));
+   mResultObject->position(result.hitTriangle.b + (result.hitTriangle.n * 0.3f));
+   mResultObject->position(result.hitTriangle.c + (result.hitTriangle.n * 0.3f));
+   
+   mHitPosLabelX->setCaption(Ogre::StringConverter::toString(result.globalPosition.x));
+   mHitPosLabelY->setCaption(Ogre::StringConverter::toString(result.globalPosition.y));
+   mHitPosLabelZ->setCaption(Ogre::StringConverter::toString(result.globalPosition.z));
+
   }
   else
   {
-   std::cout << "Did not hit anything\n";
-   testObj->position(0,0,0);
-   testObj->position(0,0,0);
+   // Didn't hit anything.
+   
+   // Try raycasting the ground plane.
+   Ogre::Vector3 globalPosition;
+  
+   if (beastie::intersections::line( beastie::line(ray, 100000) , mPlane, globalPosition ))
+   {
+    mHitPosLabelX->setCaption(Ogre::StringConverter::toString(globalPosition.x));
+    mHitPosLabelY->setCaption(Ogre::StringConverter::toString(globalPosition.y));
+    mHitPosLabelZ->setCaption(Ogre::StringConverter::toString(globalPosition.z));
+
+    float const radius = 50;
+ 
+    // accuracy is the count of points (and lines).
+    // Higher values make the circle smoother, but may slowdown the performance.
+    // The performance also is related to the count of circles.
+    float const accuracy = 15;
+ 
+    for(float theta = 0; theta <= 2 * Math::PI; theta += Ogre::Math::PI / accuracy) {
+      mResultObject->position(globalPosition.x + (radius * cos(theta)), 0, globalPosition.z + (radius * sin(theta)));
+      mResultObject->position(globalPosition);
+    }
+
+
+   }
+   else
+   {
+    
+    // Really didn't click on anything at all.
+    
+    mHitPosLabelX->setCaption("-");
+    mHitPosLabelY->setCaption("-");
+    mHitPosLabelZ->setCaption("-");
+    mResultObject->position(0,0,0);
+    mResultObject->position(0,0,0);
+    mResultObject->position(0,0,0);
+    
+   }
+   
+   
   }
-  testObj->end();
+  
+  mResultObject->end();
 
   return true;
  }
  
- bool keyPressed(const OIS::KeyEvent& evt)
+ bool keyReleased(const OIS::KeyEvent& evt)
  {
-  return SdkSample::keyPressed(evt);
+  return SdkSample::keyReleased(evt);
  }
 
  
@@ -132,6 +187,14 @@ public:
   mCamera->setFarClipDistance(100000.0f);
   mCameraMan->setTopSpeed(600);
   setDragLook(true);
+  
+  mTrayMgr->createLabel(OgreBites::TL_TOP, "GoOn", "Go'on click yer hoose yoh numpty", 280);
+  
+  mToggleDebugBox = mTrayMgr->createCheckBox(OgreBites::TL_TOPLEFT, "ToggleDebug", "Visual Debugger", 180);
+  
+  mHitPosLabelX = mTrayMgr->createLabel(OgreBites::TL_TOPRIGHT, "HitPositionX", "-", 140);
+  mHitPosLabelY = mTrayMgr->createLabel(OgreBites::TL_TOPRIGHT, "HitPositionY", "-", 140);
+  mHitPosLabelZ = mTrayMgr->createLabel(OgreBites::TL_TOPRIGHT, "HitPositionZ", "-", 140);
   
   mReferenceObject = new Ogre::ManualObject("ReferenceGrid");
   mReferenceObject->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_LIST);
@@ -194,6 +257,15 @@ public:
   
   mSceneMgr->getRootSceneNode()->attachObject(mReferenceObject);
 
+  mResultObject = mSceneMgr->createManualObject();
+  mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(mResultObject);
+
+  mResultObject->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+  mResultObject->position(0,0,0);
+  mResultObject->position(0,0,0);
+  mResultObject->position(0,0,0);
+  mResultObject->end();
+
   makeScene();
   
  }
@@ -203,7 +275,14 @@ public:
   destroyScene();
  }
  
-
+ void checkBoxToggled(CheckBox* box)
+ {
+  if (box == mToggleDebugBox)
+  {
+   mVisualDebuggerNode->setVisible(mToggleDebugBox->isChecked());
+  }
+ }
+ 
  BeastieExample()
  {
   mInfo["Title"] = "Beastie Example";
@@ -222,7 +301,13 @@ public:
  Ogre::ColourValue            BackgroundColour;
  Ogre::ColourValue            GridColour;
  Ogre::ColourValue            GroundColour;
+
+ Ogre::ManualObject*          mResultObject;
  
+ OgreBites::CheckBox*         mToggleDebugBox;
+ OgreBites::Label*            mHitPosLabelX;
+ OgreBites::Label*            mHitPosLabelY;
+ OgreBites::Label*            mHitPosLabelZ;
 
 };
 

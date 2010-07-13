@@ -190,7 +190,7 @@ namespace its_a_secret
    if (Ogre::Math::Abs(denom) < eps)
     return false;
    
-   Ogre::Real nom = pl.normal().dotProduct(ln->origin()) + pl.distance;
+   Ogre::Real nom = pl.normal().dotProduct(ln.origin()) + pl.distance();
    Ogre::Real t   = -(nom/denom);
    
    if (t >= 0 && t <= ln.length())
@@ -1133,8 +1133,6 @@ namespace its_a_secret
      }
      
     }
-    
-    //std::cout << "Winner is " << winner << std::endl;
     
     if (winner == -1)
     {
