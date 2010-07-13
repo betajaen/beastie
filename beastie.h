@@ -114,12 +114,14 @@ namespace beastie
   template<typename> class line_t;
   template<typename> class box_t;
   template<typename> class plane_t;
+  template<typename> class sub_mesh_t;
   template<typename> class mesh_t;
   template<typename> class octree_t;
   template<typename> class node_t;
   template<typename> class collision_tree_t;
   template<typename> struct intersections_t;
   
+  typedef sub_mesh_t<void> sub_mesh;
   typedef octree_t<void> octree;
   typedef node_t<void> node;
   
@@ -127,6 +129,7 @@ namespace beastie
  typedef its_a_secret::line_t<void> line;
  typedef its_a_secret::box_t<void> box;
  typedef its_a_secret::plane_t<void> plane;
+ typedef its_a_secret::mesh_t<void> sub_mesh;
  typedef its_a_secret::mesh_t<void> mesh;
  typedef its_a_secret::collision_tree_t<void> collision_tree;
  typedef its_a_secret::node_t<void> node;
@@ -165,7 +168,6 @@ static const Ogre::Real negativeEpsSquared = -epsSquared;
 namespace its_a_secret
 {
  
- 
  Ogre::Real inline absolute(const Ogre::Real& val)
  {
   return fabsf(val);
@@ -174,6 +176,13 @@ namespace its_a_secret
  template<typename> struct intersections_t
  {
   
+  enum BoxIntersection
+  {
+   BoxIntersection_Outside    = 0,
+   BoxIntersection_Inside     = 1,
+   BoxIntersection_Intersect  = 2
+  };
+
   static inline bool line(const beastie::line& ln, const beastie::plane& pl, Ogre::Vector3& globalPos)
   {
    Ogre::Real denom = pl.normal().dotProduct(ln.direction());
@@ -192,7 +201,6 @@ namespace its_a_secret
    
    return false;
   }
-  
   static inline bool line(const beastie::line& ln, const beastie::box& bx, Ogre::Vector3& globalPos)
   {
    return line(ln, bx.aabb(), globalPos);
@@ -211,6 +219,67 @@ namespace its_a_secret
    return true;
   }
   
+  static inline BoxIntersection line(const beastie::line& ln, const Ogre::AxisAlignedBox& bx)
+  {
+   
+   if (bx.isNull())
+    return BoxIntersection_Outside;
+   
+   if (bx.isInfinite())
+    return BoxIntersection_Intersect;
+
+   bool inside = true;
+   const Vector3& boxMin = bx.getMinimum();
+   const Vector3& boxMax = bx.getMaximum();
+   Vector3 origin = ln.origin();
+   Vector3 dir = ln.direction();
+   Ogre::Vector3 maxT(-1,-1,-1);
+   
+   for (int i=0;i < 3;i++)
+   {
+    if (origin[i] < boxMin[i])
+    {
+     inside = false;
+     if (dir[i] > 0)
+      maxT[i] = (boxMin[i] - origin[i]) / dir[i];
+    }
+    else if (origin[i] > boxMax[i])
+    {
+     inside = false;
+     if (dir[i] < 0)
+      maxT[i] = (boxMax[i] - origin[i]) / dir[i];
+    }
+   }
+   
+   if (inside)
+    return BoxIntersection_Intersect;
+   
+   int whichPlane = 0;
+   if (maxT[1] > maxT[whichPlane])
+    whichPlane = 1;
+   if (maxT[2] > maxT[whichPlane])
+    whichPlane = 2;
+   
+   if (  ((int)maxT[whichPlane]) & 0x80000000)
+    return BoxIntersection_Outside;
+   
+   for (int i=0; i < 3; i++)
+   {
+    if ( i != whichPlane)
+    {
+     float f = origin[i] + maxT[whichPlane] * dir[i];
+     if (f < (boxMin[i] - 0.00001f) || f > (boxMax[i] + 0.00001f))
+     {
+      return BoxIntersection_Outside;
+     }
+    }
+   }
+   
+   return BoxIntersection_Intersect;
+  
+   
+  } // BoxIntersection  intersect(...)
+  
   static inline bool line(const beastie::line& ln, triangle* tri, Ogre::Real& distance)
   {
    std::pair<bool, float> res = Ogre::Math::intersects(ln.ray(), tri->a, tri->b, tri->c, tri->n, true, false);
@@ -218,7 +287,7 @@ namespace its_a_secret
    return res.first;
   }
   
-  static inline bool line(const beastie::line& ln, mesh* msh, const Ogre::Matrix4& meshGlobalTransformation, Ogre::Real& distance, int& triangleId, Ogre::Vector3& hitPosition)
+  static inline bool line(const beastie::line& ln, triangle* begin, triangle* end, const Ogre::Matrix4& meshGlobalTransformation, Ogre::Real& distance, int& triangleId, Ogre::Vector3& hitPosition)
   {
    // Convert matrix into local space matrix.
    Ogre::Matrix4 localSpace;
@@ -229,9 +298,9 @@ namespace its_a_secret
    
    float bestDistance = local_ln.length();
    triangle *bestTriangle = 0;
-   triangle *tri = msh->begin(), *end = msh->end();
+   triangle *tri = begin;
 
-#if 1
+#if 0
    
    Ogre::Real t = 0;
    bool       ret = false;
@@ -256,9 +325,10 @@ namespace its_a_secret
     tri++;
     
    }
-
+   
 #else
-
+   
+   
    Ogre::Real t, denom, n0, n1, n2, u1, v1, u2, v2, u0, v0, alpha, beta, area, tolerance;
    size_t i0, i1;
    
@@ -346,7 +416,7 @@ namespace its_a_secret
    
    hitPosition = meshGlobalTransformation * local_ln.at(bestDistance);
    distance = ln.origin().distance(hitPosition);
-   triangleId = bestTriangle - msh->begin();
+   triangleId = bestTriangle - begin;
    
    return true;
   }
@@ -591,6 +661,93 @@ namespace its_a_secret
    
  };
 
+ /*! class. submesh
+     desc.
+         A portion of a larger mesh with an AABB.
+ */
+ template<typename> class sub_mesh_t : public Ogre::GeneralAllocatedObject
+ {
+   
+  public:
+   
+   sub_mesh_t() : submeshTriangles(0), submeshNbTriangles(0), submeshMaxNbTriangles(0)
+   {
+    submeshAABB.setNull();
+   }
+   
+  ~sub_mesh_t()
+   {
+    if (submeshTriangles)
+     free(submeshTriangles);
+   }
+   
+   triangle* begin()
+   {
+    return submeshTriangles;
+   }
+   
+   triangle* end()
+   {
+    return (submeshTriangles + submeshNbTriangles);
+   }
+   
+   triangle& at(size_t index)
+   {
+    return *(submeshTriangles + index);
+   }
+
+   inline void   push(const Ogre::Vector3& a,const Ogre::Vector3& b, const Ogre::Vector3& c)
+   {
+    if (submeshMaxNbTriangles == 0)
+     reserve(1280);
+    
+    if (submeshNbTriangles == submeshMaxNbTriangles)
+     resize(submeshMaxNbTriangles*2);
+    
+    submeshTriangles[submeshNbTriangles].a = a;
+    submeshTriangles[submeshNbTriangles].b = b;
+    submeshTriangles[submeshNbTriangles].c = c;
+    submeshTriangles[submeshNbTriangles].n = Ogre::Math::calculateBasicFaceNormal(a,b,c);
+    
+    submeshAABB.merge(a);
+    submeshAABB.merge(b);
+    submeshAABB.merge(c);
+
+    submeshNbTriangles++;
+   }
+   
+   inline void   reserve(size_t count)
+   {
+    if (submeshTriangles)
+     free(submeshTriangles);
+    
+    submeshTriangles = (triangle*) malloc(count * sizeof(triangle));
+    submeshMaxNbTriangles = count;
+    submeshNbTriangles = 0;
+    submeshAABB.setNull();
+   }
+   
+   inline void resize(size_t new_size)
+   {
+    triangle* new_triangles = (triangle*) malloc(new_size * sizeof(triangle));
+   
+    if (submeshTriangles)
+    {
+     memcpy(new_triangles, submeshTriangles, submeshNbTriangles * sizeof(triangle));
+     free(submeshTriangles);
+    }
+    
+    submeshTriangles = new_triangles;
+    submeshMaxNbTriangles = new_size;
+   }
+   
+   Ogre::AxisAlignedBox  submeshAABB;
+   triangle*             submeshTriangles;
+   unsigned int          submeshNbTriangles;
+   unsigned int          submeshMaxNbTriangles;
+   
+ };
+
  /*! class. mesh
      desc.
          A optimised mesh in represented by seperate triangles. Many nodes may 
@@ -610,15 +767,17 @@ namespace its_a_secret
    typedef std::vector<triangle> triangles;
    
    mesh_t(const Ogre::MeshPtr& meshPtr)
-   : meshOgreMesh(meshPtr), meshReferences(0), meshTriangles(0), meshNbTriangles(0)
+   : meshOgreMesh(meshPtr), meshReferences(0)
    {
+    submeshes[0] = new sub_mesh();
+    submeshes[1] = new sub_mesh();
     _inspect();
    }
    
   ~mesh_t()
    {
-    if (meshTriangles)
-     free(meshTriangles);
+    delete submeshes[0];
+    delete submeshes[1];
    }
    
    Ogre::AxisAlignedBox& getAABB()
@@ -626,19 +785,9 @@ namespace its_a_secret
     return meshAABB;
    }
    
-   inline triangle* begin()
+   inline sub_mesh* at(int id)
    {
-    return meshTriangles;
-   }
-
-   inline triangle* end()
-   {
-    return (meshTriangles + meshNbTriangles);
-   }
-   
-   inline triangle& at(int id)
-   {
-    return *(meshTriangles + id);
+    return submeshes[id];
    }
    
    inline size_t   nbTriangles() const
@@ -732,27 +881,37 @@ namespace its_a_secret
      currentOffset = nextOffset;
     } // for
     
-    if (meshTriangles)
-     free(meshTriangles);
     
-    meshNbTriangles = nbIndices / 3;
-    meshTriangles = (triangle*) malloc(sizeof(triangle) * meshNbTriangles);
-    
+    bool add[2];
+    int plane = 1; // Y
     meshAABB.setNull();
-    meshNextTriangleId = 0;
-    
-    triangle* tri = meshTriangles;
     for (size_t i=0;i < nbIndices;i+=3)
     {
-     tri->a = verts[indices[i]];
-     tri->b = verts[indices[i+1]];
-     tri->c = verts[indices[i+2]];
-     tri->n = Ogre::Math::calculateBasicFaceNormal(tri->a, tri->b, tri->c);
-     meshAABB.merge(tri->a);
-     meshAABB.merge(tri->b);
-     meshAABB.merge(tri->c);
-     tri++;
+     
+     add[0] = false;
+     add[1] = false;
+     
+     for (int j=0;j < 3;j++)
+     {
+      if (verts[indices[i+j]][plane] < 0 && !add[0])
+       add[0] = true;
+      else if (verts[indices[i+j]][plane] >= 0 && !add[1])
+       add[1] = true;
+     }
+     
+     if (add[0])
+      submeshes[0]->push(verts[indices[i]], verts[indices[i+1]], verts[indices[i+2]]);
+     
+     if (add[1])
+      submeshes[1]->push(verts[indices[i]], verts[indices[i+1]], verts[indices[i+2]]);
+     
+     meshAABB.merge(verts[indices[i]]);
+     meshAABB.merge(verts[indices[i+1]]);
+     meshAABB.merge(verts[indices[i+2]]);
+     
     }
+    
+
     
     delete indices;
     delete verts;
@@ -764,27 +923,35 @@ namespace its_a_secret
     
     Ogre::Vector3 a, b, c;
     
-    for (triangle* it = begin(); it != end(); it++)
+    for (unsigned int i=0; i < 2;i++)
     {
-     a = transform * (*it).a;
-     b = transform * (*it).b;
-     c = transform * (*it).c;
+     
+     Ogre::ColourValue col(0.f + i, 1.f - i, 1.f );
+     
+     collision_tree::_drawBox(obj, submeshes[i]->submeshAABB, col, transform);
+     
+     for (unsigned int j = 0; j < submeshes[i]->submeshNbTriangles; j++)
+     {
+      a = transform * submeshes[i]->submeshTriangles[j].a;
+      b = transform * submeshes[i]->submeshTriangles[j].b;
+      c = transform * submeshes[i]->submeshTriangles[j].c;
 
-     obj->position(a);
-     obj->colour(Ogre::ColourValue::Green);
-     obj->position(b);
-     obj->colour(Ogre::ColourValue::Green);
+      obj->position(a);
+      obj->colour(col);
+      obj->position(b);
+      obj->colour(col);
 
-     obj->position(b);
-     obj->colour(Ogre::ColourValue::Green);
-     obj->position(c);
-     obj->colour(Ogre::ColourValue::Green);
+      obj->position(b);
+      obj->colour(col);
+      obj->position(c);
+      obj->colour(col);
 
-     obj->position(c);
-     obj->colour(Ogre::ColourValue::Green);
-     obj->position(a);
-     obj->colour(Ogre::ColourValue::Green);
+      obj->position(c);
+      obj->colour(col);
+      obj->position(a);
+      obj->colour(col);
 
+     }
     }
     
    }
@@ -799,15 +966,18 @@ namespace its_a_secret
     meshReferences--;
    }
    
+   unsigned int references()
+   {
+    return meshReferences;
+   }
+   
   protected:
    
+   sub_mesh*             submeshes[2];
    Ogre::MeshPtr         meshOgreMesh;
-   triangle*             meshTriangles;
-   unsigned int          meshNbTriangles;
-   
    Ogre::AxisAlignedBox  meshAABB;
-   unsigned int          meshNextTriangleId;
    unsigned int          meshReferences;
+   
  };
  
  /*! class. node
@@ -929,7 +1099,59 @@ namespace its_a_secret
 
    inline ray_query raycast(const line& ln)
    {
+#if 1
     
+    int tri_id[2];
+    ray_query query[2];
+    
+    Ogre::Real bestDistance = ln.length();
+    int winner = -1;
+    
+    for (unsigned int i=0;i < 2;i++)
+    {
+     
+     sub_mesh* sm = octreeNodeMesh->at(i);
+     
+     if (sm->submeshAABB.isNull())
+      continue;
+     
+     Ogre::AxisAlignedBox globalAABB = sm->submeshAABB;
+     globalAABB.transform(octreeNodeTransform);
+
+     if (intersections::line(ln, globalAABB) != intersections::BoxIntersection_Intersect)
+      continue;
+     
+     query[i].didHit = intersections::line(ln, sm->begin(), sm->end(), octreeNodeTransform, query[i].distance, tri_id[i], query[i].globalPosition);
+     
+     if (query[i].didHit == false)
+      continue;
+     
+     if (query[i].distance < bestDistance)
+     {
+      winner = i;
+      bestDistance = query[i].distance;
+     }
+     
+    }
+    
+    //std::cout << "Winner is " << winner << std::endl;
+    
+    if (winner == -1)
+    {
+     query[0].didHit = false;
+     return query[0];
+    }
+    
+    query[winner].didHit = true;
+    query[winner].hitTriangle = octreeNodeMesh->at(winner)->at(tri_id[winner]);
+    query[winner].hitTriangle.a = octreeNodeTransform * query[winner].hitTriangle.a;
+    query[winner].hitTriangle.b = octreeNodeTransform * query[winner].hitTriangle.b;
+    query[winner].hitTriangle.c = octreeNodeTransform * query[winner].hitTriangle.c;
+    query[winner].hitMesh = octreeNodeMesh;
+
+    return query[winner];
+    
+#else
     int tri_id = 0;
     ray_query query;
     query.didHit = intersections::line(ln, octreeNodeMesh, octreeNodeTransform, query.distance, tri_id, query.globalPosition);
@@ -944,6 +1166,7 @@ namespace its_a_secret
     }
     
     return query;
+#endif
    }
    
    void _update()
@@ -1131,14 +1354,7 @@ namespace its_a_secret
     
     Ogre::Vector3 origin;
    };
-   
-   enum BoxIntersection
-   {
-    BoxIntersection_Outside    = 0,
-    BoxIntersection_Inside     = 1,
-    BoxIntersection_Intersect  = 2
-   };
-   
+    
    collision_tree_t()
    : collisionTreeOctree(0),
      collisionTreeNextNodeId(0),
@@ -1165,10 +1381,15 @@ namespace its_a_secret
    
   ~collision_tree_t()
    {
+    
     if (collisionTreeOctree)
      OGRE_DELETE collisionTreeOctree;
     
-    // TODO: For each mesh...delete them too.
+    for (meshList::iterator it = collisionTreeMeshes.begin(); it != collisionTreeMeshes.end(); it++)
+    {
+     OGRE_DELETE (*it).second;
+    }
+    
    }
    
    void _updateNode(node* n)
@@ -1360,7 +1581,7 @@ namespace its_a_secret
     OGRE_DELETE n;
    }
    
-   mesh*          getOrLoadMesh(const Ogre::MeshPtr& meshPtr)
+   mesh* getOrLoadMesh(const Ogre::MeshPtr& meshPtr)
    {
     meshList::iterator i = collisionTreeMeshes.find(meshPtr->getName());
     
@@ -1374,13 +1595,52 @@ namespace its_a_secret
     
    }
    
-   void           unloadMesh(const Ogre::MeshPtr& mesh);
+   bool canUnloadMesh(const Ogre::String& mesh)
+   {
+    meshList::iterator i = collisionTreeMeshes.find(mesh);
+    if (i != collisionTreeMeshes.end())
+     return false;
+    
+    return (*it).second->references() == 0;
+   }
    
-   void           unloadMesh(const Ogre::String& name);
+   void unloadMesh(const Ogre::MeshPtr& mesh)
+   {
+    
+    meshList::iterator i = collisionTreeMeshes.find(mesh->getName());
+    if (i != collisionTreeMeshes.end())
+     return false;
+    
+    mesh* m = (*i).second;
+    collisionTreeMeshes.erase(i);
+    
+    OGRE_DELETE m;
+    
+   }
    
-   bool           isMeshLoaded(const Ogre::MeshPtr& mesh);
+   void unloadMesh(const Ogre::String& name)
+   {
+    
+    meshList::iterator i = collisionTreeMeshes.find(name);
+    if (i != collisionTreeMeshes.end())
+     return false;
+    
+    mesh* m = (*i).second;
+    collisionTreeMeshes.erase(i);
+    
+    OGRE_DELETE m;
+    
+   }
+
+   bool isMeshLoaded(const Ogre::MeshPtr& mesh)
+   {
+    return collisionTreeMeshes.find(mesh->getName()) != collisionTreeMeshes.end();
+   }
    
-   bool           isMeshLoaded(const Ogre::String& name);
+   bool isMeshLoaded(const Ogre::String& name)
+   {
+    return collisionTreeMeshes.find(name) != collisionTreeMeshes.end();
+   }
    
    bool raycast(const Ogre::Ray& ray, const Ogre::Real& length, ray_query& result)
    {
@@ -1489,12 +1749,12 @@ namespace its_a_secret
     {
      Ogre::AxisAlignedBox obox = octant->getCulledBounds();
      
-     BoxIntersection intersection = intersect(ref, obox);
+     intersections::BoxIntersection intersection = intersections::line(ref, obox);
      
-     if (intersection == BoxIntersection_Outside)
+     if (intersection == intersections::BoxIntersection_Outside)
       return;
      
-     full = (intersection == BoxIntersection_Inside);
+     full = (intersection == intersections::BoxIntersection_Inside);
      
     }
 
@@ -1512,7 +1772,7 @@ namespace its_a_secret
      }
      else
      {
-      if ( intersect(ref, n->getWorldAABB()) != BoxIntersection_Outside )
+      if ( intersections::line(ref, n->getWorldAABB()) != intersections::BoxIntersection_Outside )
       {
        sorted_node sn;
        sn.n = n;
@@ -1552,70 +1812,6 @@ namespace its_a_secret
 
    } // void findNodesIn(...)
    
-
-   BoxIntersection  intersect(const line& line, const Ogre::AxisAlignedBox& box)
-   {
-    
-    if (box.isNull())
-     return BoxIntersection_Outside;
-    
-    if (box.isInfinite())
-     return BoxIntersection_Intersect;
-
-    bool inside = true;
-    const Vector3& boxMin = box.getMinimum();
-    const Vector3& boxMax = box.getMaximum();
-    Vector3 origin = line.origin();
-    Vector3 dir = line.direction();
-    Ogre::Vector3 maxT(-1,-1,-1);
-    
-    for (int i=0;i < 3;i++)
-    {
-     if (origin[i] < boxMin[i])
-     {
-      inside = false;
-      if (dir[i] > 0)
-       maxT[i] = (boxMin[i] - origin[i]) / dir[i];
-     }
-     else if (origin[i] > boxMax[i])
-     {
-      inside = false;
-      if (dir[i] < 0)
-       maxT[i] = (boxMax[i] - origin[i]) / dir[i];
-     }
-    }
-    
-    if (inside)
-     return BoxIntersection_Intersect;
-    
-    int whichPlane = 0;
-    if (maxT[1] > maxT[whichPlane])
-     whichPlane = 1;
-    if (maxT[2] > maxT[whichPlane])
-     whichPlane = 2;
-    
-    if (  ((int)maxT[whichPlane]) & 0x80000000)
-     return BoxIntersection_Outside;
-    
-    for (int i=0; i < 3; i++)
-    {
-     if ( i != whichPlane)
-     {
-      float f = origin[i] + maxT[whichPlane] * dir[i];
-      if (f < (boxMin[i] - 0.00001f) || f > (boxMax[i] + 0.00001f))
-      {
-       //std::cout << "intersect.d1\n";
-       return BoxIntersection_Outside;
-      }
-     }
-    }
-    
-    return BoxIntersection_Intersect;
-   
-    
-   } // BoxIntersection  intersect(...)
-   
-   
    
    void  renderVisualDebugger(Ogre::SceneNode* debugNodePtr = 0)
    {
@@ -1633,86 +1829,83 @@ namespace its_a_secret
     for (nodeList::iterator it = collisionTreeNodes.begin(); it != collisionTreeNodes.end(); it++)
     {
      node* n = (*it).second;
-     _drawBox(n->getWorldAABB(), Ogre::ColourValue::Red);
      n->getMesh()->_draw(collisionDebugObject, n->getTransform());
     } // for
 
     for (octreeList::iterator it = collisionTreeOctrees.begin(); it != collisionTreeOctrees.end(); it++)
     {
      octree* o = (*it);
-     _drawBox(o->octreeBox, Ogre::ColourValue::Blue);
+     _drawBox(collisionDebugObject, o->octreeBox, Ogre::ColourValue::White);
     }
     
     collisionDebugObject->end();
     
    } // void  renderVisualDebugger(...)
    
-  protected:
-   
-   void           _drawBox(const Ogre::AxisAlignedBox& box, const Ogre::ColourValue& col)
+   static void _drawBox(Ogre::ManualObject* obj, const Ogre::AxisAlignedBox& box, const Ogre::ColourValue& col, const Ogre::Matrix4& transform = Ogre::Matrix4::IDENTITY)
    {
     // 0--3
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_BOTTOM));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_BOTTOM));
+    obj->colour(col);
 
     // 3--7
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_BOTTOM));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_BOTTOM));
+    obj->colour(col);
 
     // 7--6
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_BOTTOM));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_BOTTOM));
+    obj->colour(col);
 
     // 6--0
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_BOTTOM));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_BOTTOM));
+    obj->colour(col);
     
     ///
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_TOP));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_TOP));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_TOP));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_TOP));
+    obj->colour(col);
 
     ///
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_TOP));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_LEFT_TOP));
+    obj->colour(col);
     ///
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_TOP));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::FAR_RIGHT_TOP));
+    obj->colour(col);
     ///
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_TOP));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_RIGHT_TOP));
+    obj->colour(col);
     ///
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_BOTTOM));
-    collisionDebugObject->colour(col);
-    collisionDebugObject->position(box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_TOP));
-    collisionDebugObject->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_BOTTOM));
+    obj->colour(col);
+    obj->position(transform * box.getCorner(Ogre::AxisAlignedBox::NEAR_LEFT_TOP));
+    obj->colour(col);
 
    }
    
