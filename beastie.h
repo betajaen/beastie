@@ -252,6 +252,24 @@ Typical usage is:
 #include "OGRE/OgreSubMesh.h"
 #include "OGRE/OgreMeshManager.h"
 
+
+/*
+
+Raycasting algorithm
+--------------------
+
+By setting the value of the BEASTIE_RAYCASTING_ALGORITHM macro you can
+choose which raycasting algorithm is used for line v.s. triangle intersections.
+
+The possible values are:
+
+0 - Ogre Math::intersect function.
+1 - Tomas Möller's "Fast Minimum Storage Ray-Triangle Intersection"
+
+*/
+
+#define BEASTIE_RAYCASTING_ALGORITHM 0
+
 namespace beastie
 {
  namespace its_a_secret
@@ -322,7 +340,7 @@ struct ray_query
 static const unsigned int BeastieVersion[] = {13, 7, 2010};
 static const Ogre::Real BeastieOctreeMaxSize = 10000;
 static const Ogre::Real BeastieOctreeMaxDepth = 8;
-static const Ogre::Real eps = std::numeric_limits<Ogre::Real>::epsilon();
+static const Ogre::Real eps = 0.000001f;
 static const Ogre::Real epsSquared = eps * eps;
 static const Ogre::Real negativeEps = -eps;
 static const Ogre::Real negativeEpsSquared = -epsSquared;
@@ -594,33 +612,7 @@ namespace its_a_secret
    beastie::triangle *bestTriangle = 0;
    beastie::triangle *tri = begin;
 
-#if 0
-   
-   Ogre::Real t = 0;
-   bool       ret = false;
-   
-   while(tri != end)
-   {
-    
-    ret = line(local_ln, tri, t);
-    
-    if (ret == false)
-    {
-     tri++;
-     continue;
-    }
-    
-    if (bestTriangle == 0 || t < bestDistance)
-    {
-     bestTriangle = tri;
-     bestDistance = t;
-    }
-    
-    tri++;
-    
-   }
-   
-#else
+#if BEASTIE_RAYCASTING_ALGORITHM == 0
    
    
    Ogre::Real t, denom, n0, n1, n2, u1, v1, u2, v2, u0, v0, alpha, beta, area, tolerance;
@@ -705,7 +697,66 @@ namespace its_a_secret
    }
    
 #endif
+
+
+#if BEASTIE_RAYCASTING_ALGORITHM == 1
+
+   // Adapted from Fast, Minimum Storage Ray/Triangle Intersection -- Tomas Möller
+   // http://www.cs.virginia.edu/~gfx/Courses/2003/ImageSynthesis/papers/Acceleration/Fast%20MinimumStorage%20RayTriangle%20Intersection.pdf
+
+   Ogre::Vector3 edge1, edge2, pvec, tvec, qvec;
+   Ogre::Real det, invDet, u, v, t;
    
+   while(tri != end)
+   {
+    
+    edge1 = (*tri).b - (*tri).a;
+    edge2 = (*tri).c - (*tri).a;
+    
+    pvec = local_ln.direction().crossProduct(edge2);
+    
+    det = edge1.dotProduct(pvec);
+    
+    if (det > beastie::negativeEps && det < beastie::eps)
+    {
+     tri++;
+     continue;
+    }
+    
+    invDet = 1.0f / det;
+    
+    tvec = local_ln.origin() - (*tri).a;
+    
+    u = tvec.dotProduct(pvec) * invDet;
+    
+    if (u < 0.0f || u > 1.0f)
+    {
+     tri++;
+     continue;
+    }
+    
+    qvec = tvec.crossProduct(edge1);
+    v = local_ln.direction().dotProduct(qvec) * invDet;
+    
+    if (v < 0.0f || u+v > 1.0f)
+    {
+     tri++;
+     continue;
+    }
+    
+    t = edge2.dotProduct(qvec) * invDet;
+
+    if (bestTriangle == 0 || t < bestDistance)
+    {
+     bestTriangle = tri;
+     bestDistance = t;
+    }
+    
+    tri++;
+   }
+
+#endif
+
    if (bestTriangle == 0)
     return false;
    
@@ -760,9 +811,7 @@ namespace its_a_secret
   inline line_t(const Ogre::Vector3& line_origin, const Ogre::Vector3& line_end)
   : lineOrigin(line_origin)
   {
-   lineDirection = (line_end - lineOrigin);
-   lineLength = lineDirection.length();
-   lineDirection.normalise();
+   end(line_end);
   }
 
   /*! function. origin
@@ -773,7 +822,16 @@ namespace its_a_secret
   {
    return lineOrigin;
   }
-  
+
+  /*! function. origin
+      desc.
+          Set the line's origin
+  */
+  inline void  origin(const Ogre::Vector3& new_origin)
+  {
+   lineOrigin = new_origin;
+  }
+
   /*! function. end
       desc.
           Get the line's end position.
@@ -782,7 +840,18 @@ namespace its_a_secret
   {
    return at(lineLength);
   }
-  
+
+  /*! function. end
+      desc.
+          Set the line's end position, thus work out the new direction and length.
+  */
+  inline void end(const Ogre::Vector3& line_end)
+  {
+   lineDirection = (line_end - lineOrigin);
+   lineLength = lineDirection.length();
+   lineDirection.normalise();
+  }
+
   /*! function. direction
       desc.
           Get the line's direction
@@ -792,6 +861,15 @@ namespace its_a_secret
    return lineDirection;
   }
 
+  /*! function. direction
+      desc.
+          Set the line's direction
+  */
+  inline void  direction(const Ogre::Vector3& new_direction) const
+  {
+   lineDirection = new_direction;
+  }
+
   /*! function. length
       desc.
           Get the line's length
@@ -799,6 +877,15 @@ namespace its_a_secret
   inline Ogre::Real  length() const
   {
    return lineLength;
+  }
+
+  /*! function. length
+      desc.
+          Get the line's length
+  */
+  inline void  length(const Ogre::Vector3& new_length) const
+  {
+   lineLength = new_length;
   }
 
   /*! function. at
