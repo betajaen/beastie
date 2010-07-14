@@ -27,7 +27,7 @@ public:
   // Other low-res collision detection is achieved via the ground plane, such where the mouse clicks.
   mPlane = beastie::plane(Ogre::Vector3::UNIT_Y);
   
-
+  
   // Create 10 tudor houses, randomly.
   for (unsigned int i=0;i < 10;i++)
   {
@@ -37,11 +37,13 @@ public:
    v.y = 550;
    v.z = Ogre::Math::RangeRandom(-7500,7500);
    
+   Ogre::Quaternion q(Ogre::Degree(Ogre::Math::RangeRandom(0,359)), Ogre::Vector3(0,1,0));
+   
    // Create the SceneNode/Entity
-   createNodeEntityPair("tudorhouse.mesh", v);
+   createNodeEntityPair("tudorhouse.mesh", v, q);
 
    // Create the appropriate collision object at the same position, using the same mesh.
-   mTree->createNode("tudorhouse.mesh", v);
+   mTree->createNode("tudorhouse.mesh", v, q);
    
   }
   
@@ -84,7 +86,7 @@ public:
   unsigned long rayTime = 0;
   
   timer.reset();
-  bool ret = mTree->raycast(ray, 10000, result);
+  bool ret = mTree->intersect(ray, 10000, result);
   rayTime = timer.getMicroseconds();
   
   mResultObject->beginUpdate(0);
@@ -93,9 +95,9 @@ public:
   {
    // Hit something.
 
-   mResultObject->position(result.hitTriangle.a + (result.hitTriangle.n * 0.3f));
-   mResultObject->position(result.hitTriangle.b + (result.hitTriangle.n * 0.3f));
-   mResultObject->position(result.hitTriangle.c + (result.hitTriangle.n * 0.3f));
+   mResultObject->position(result.hitTriangle.a + (result.hitTriangle.n * 3.f));
+   mResultObject->position(result.hitTriangle.b + (result.hitTriangle.n * 3.f));
+   mResultObject->position(result.hitTriangle.c + (result.hitTriangle.n * 3.f));
    
    mHitPosLabelX->setCaption(Ogre::StringConverter::toString(result.globalPosition.x));
    mHitPosLabelY->setCaption(Ogre::StringConverter::toString(result.globalPosition.y));
